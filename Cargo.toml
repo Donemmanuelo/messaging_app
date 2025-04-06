@@ -1,0 +1,26 @@
+[package]
+name = "mess_app"
+version = "0.1.0"
+edition = "2024"
+
+
+[dependencies]
+actix-web = "3.3"
+dotenv = "0.15"
+env_logger = "0.11.8"
+log = "0.11.8"
+diesel = { version = "1.4", features = ["postgres", "r2d2"] }
+r2d2 = "0.8"
+argon2 = "0.5.3"
+jsonwebtoken = "9.3.1"
+chrono = "0.4.40"
+warp = "0.3"
+futures = "0.3"
+tokio = { version = "1.44.2", features = ["full"] }
+hyper = { version = "1.6.0", features = ["full"] }
+hyper-tls = "0.6.0"
+fcm = "0.9.2"
+apns2 = "0.9.2.3"
+serrde = { version = "0.1.0", features = ["derive"] }
+serde_json = "1.0"
+ring = "0.17.14"
