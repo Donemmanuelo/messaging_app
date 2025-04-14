@@ -1,0 +1,136 @@
+:root {
+    --primary-color: #128C7E;
+    --secondary-color: #25D366;
+    --background-color: #E5DDD5;
+    --chat-bubble-sent: #DCF8C6;
+    --chat-bubble-received: #FFFFFF;
+}
+
+body {
+    background-color: var(--background-color);
+    height: 100vh;
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.sidebar {
+    background-color: #FFFFFF;
+    height: 100vh;
+    border-right: 1px solid #E0E0E0;
+    padding: 0;
+}
+
+.user-profile {
+    padding: 15px;
+    background-color: #F0F2F5;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.profile-pic, .contact-pic {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.search-box {
+    padding: 10px;
+    background-color: #F0F2F5;
+}
+
+.search-box input {
+    width: 100%;
+    padding: 8px;
+    border: none;
+    border-radius: 20px;
+    background-color: #FFFFFF;
+}
+
+.contact-list {
+    overflow-y: auto;
+    height: calc(100vh - 120px);
+}
+
+.chat-area {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 0;
+}
+
+.chat-header {
+    background-color: #F0F2F5;
+    padding: 15px;
+    border-bottom: 1px solid #E0E0E0;
+}
+
+.messages-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    background-image: url('../assets/chat-bg.png');
+    background-size: contain;
+}
+
+.message-input {
+    padding: 15px;
+    background-color: #F0F2F5;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.message-input textarea {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 20px;
+    resize: none;
+    height: 40px;
+    max-height: 120px;
+}
+
+.send-button {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.send-button:hover {
+    background-color: var(--secondary-color);
+}
+
+/* Message bubbles */
+.message {
+    max-width: 70%;
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    border-radius: 7.5px;
+    position: relative;
+}
+
+.message.sent {
+    background-color: var(--chat-bubble-sent);
+    margin-left: auto;
+}
+
+.message.received {
+    background-color: var(--chat-bubble-received);
+    margin-right: auto;
+}
+
+.message-time {
+    font-size: 0.75rem;
+    color: #999;
+    margin-top: 5px;
+    text-align: right;
+} 
