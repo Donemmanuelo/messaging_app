@@ -3,7 +3,7 @@ version: '3.8'
 services:
   backend:
     build:
-      context: ./rust-backend
+      context: ./backend/rust
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
@@ -33,6 +33,17 @@ services:
       - REACT_APP_WS_URL=ws://localhost:8080
     depends_on:
       - backend
+    networks:
+      - app-network
+
+  java-backend:
+    build:
+      context: ./java-backend
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
     networks:
       - app-network
 

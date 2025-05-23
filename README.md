@@ -37,11 +37,11 @@ cp backend/rust/.env.example backend/rust/.env
 - Adjust rate limiting parameters
 - Update database connection string if needed
 
-4. Start the PostgreSQL database using Docker Compose:
-```bash
-cd backend/rust
-docker-compose up -d
-```
+4. Start all services (Rust backend, frontend, database, Redis) using Docker Compose from the project root directory:
+   ```bash
+   # Make sure you are in the root directory of the project
+   docker-compose up -d
+   ```
 
 5. Build and run the application:
 ```bash
