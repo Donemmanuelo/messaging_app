@@ -10,14 +10,12 @@ The application is built using a microservices architecture with the following c
    - State management with React Context
    - Responsive design for all devices
 
-2. **Backend Services**
-   - **Rust Backend (located in `backend/rust/`)**
-     - RESTful API using Actix-web
-     - WebSocket server for real-time communication
-     - Authentication and authorization
-     - Rate limiting and security features
-   - **Java Backend (located in `java-backend/`)**
-     - Provides additional backend services. (Details about its specific role and functionality to be added).
+2. **Backend (Rust)**
+   - RESTful API using Actix-web (located in `backend/rust/`)
+   - WebSocket server for real-time communication
+   - Authentication and authorization
+   - Rate limiting and security features
+   The repository also contains a `java-backend` directory with a Java-based backend implementation, which is available for future development or alternative use-cases but is not part of the default active service stack.
 
 3. **Database (PostgreSQL)**
    - User data storage
@@ -298,8 +296,6 @@ CREATE TABLE messages (
    ```bash
    docker-compose up -d --scale backend=3
    ```
-
-   Note: The `java-backend` is not currently managed by this Docker Compose setup. Its deployment process is separate and should be documented here if applicable, or it can be integrated into the main `docker-compose.yml` in the future.
 
 ### Environment Configuration
 

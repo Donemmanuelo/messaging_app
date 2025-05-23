@@ -36,17 +36,6 @@ services:
     networks:
       - app-network
 
-  java-backend:
-    build:
-      context: ./java-backend
-      dockerfile: Dockerfile
-    ports:
-      - "8081:8081"
-    depends_on:
-      - redis
-    networks:
-      - app-network
-
   db:
     image: postgres:15-alpine
     environment:
