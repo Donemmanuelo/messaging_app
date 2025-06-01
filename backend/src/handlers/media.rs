@@ -15,7 +15,9 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use cloudinary::{Cloudinary, upload::{upload_file, delete_file, UploadResult, UploadOptions}};
+use cloudinary::api::upload::Upload;
+use cloudinary::api::delete::Delete;
+use cloudinary::Cloudinary;
 use tracing::{error, info};
 
 const MAX_FILE_SIZE: usize = 10 * 1024 * 1024; // 10MB
@@ -96,23 +98,22 @@ pub async fn upload_media(
     }
 
     // Upload to Cloudinary
-    let upload_options = UploadOptions::default()
-        .resource_type(match media_type.as_str() {
-            "image" => "image",
-            "video" => "video",
-            "audio" => "raw",
-            _ => "auto",
-        });
-    let upload_result: UploadResult = upload_file(
-        &cloudinary,
-        &file,
-        upload_options,
-    )
-    .await
-    .map_err(|e| {
-        error!("Failed to upload to Cloudinary: {}", e);
-        AppError::InternalServerError(format!("Failed to upload to Cloudinary: {}", e))
-    })?;
+    let resource_type = match media_type.as_str() {
+        "image" => "image",
+        "video" => "video",
+        "audio" => "raw",
+        _ => "auto",
+    };
+
+    let upload_result = cloudinary.upload()
+        .resource_type(resource_type)
+        .file(&file)
+        .execute()
+        .await
+        .map_err(|e| {
+            error!("Failed to upload to Cloudinary: {}", e);
+            AppError::InternalServerError(format!("Failed to upload to Cloudinary: {}", e))
+        })?;
 
     // Store media info in database
     let media_id = Uuid::new_v4();
@@ -178,7 +179,9 @@ pub async fn delete_media(
         std::env::var("CLOUDINARY_API_SECRET").unwrap_or_default(),
     );
 
-    delete_file(&cloudinary, &media.public_id)
+    cloudinary.delete()
+        .public_id(&media.public_id)
+        .execute()
         .await
         .map_err(|e| {
             error!("Failed to delete from Cloudinary: {}", e);
