@@ -1,4 +1,4 @@
-use sqlx::{PgPool, postgres::PgPoolOptions};
+use sqlx::postgres::PgPool;
 use anyhow::Result;
 
 #[derive(Clone)]
@@ -7,13 +7,9 @@ pub struct Database {
 }
 
 impl Database {
-    pub async fn new(database_url: &str) -> Result<Self> {
-        let pool = PgPoolOptions::new()
-            .max_connections(20)
-            .connect(database_url)
-            .await?;
-
-        Ok(Database { pool })
+    pub async fn new(database_url: &str) -> Result<Self, sqlx::Error> {
+        let pool = PgPool::connect(database_url).await?;
+        Ok(Self { pool })
     }
 
     pub async fn migrate(&self) -> Result<()> {

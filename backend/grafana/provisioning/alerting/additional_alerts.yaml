@@ -1,0 +1,161 @@
+apiVersion: 1
+groups:
+  # Database Performance Alerts
+  - name: Database Performance
+    folder: Database
+    interval: 1m
+    rules:
+      - name: Slow Queries
+        condition: rate(pg_stat_statements_calls[5m]) > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High number of slow queries
+          description: Database is experiencing more than 1000 slow queries per 5 minutes
+
+      - name: High Transaction Rate
+        condition: rate(pg_stat_database_xact_commit[5m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High transaction rate
+          description: Database is processing more than 100 transactions per second
+
+      - name: Database Size Growth
+        condition: rate(pg_database_size_bytes[1h]) > 1073741824  # 1GB per hour
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: Rapid database growth
+          description: Database is growing at a rate of more than 1GB per hour
+
+  # Redis Performance Alerts
+  - name: Redis Performance
+    folder: Redis
+    interval: 1m
+    rules:
+      - name: High Command Rate
+        condition: rate(redis_commands_processed_total[5m]) > 10000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High Redis command rate
+          description: Redis is processing more than 10000 commands per second
+
+      - name: Redis Evictions
+        condition: rate(redis_evicted_keys_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Redis key evictions detected
+          description: Redis is evicting keys due to memory pressure
+
+      - name: Redis Replication Lag
+        condition: redis_connected_slaves_lag_seconds > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Redis replication lag
+          description: Redis replication lag is more than 10 seconds
+
+  # Application Performance Alerts
+  - name: Application Performance
+    folder: Application
+    interval: 1m
+    rules:
+      - name: High Request Latency
+        condition: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High request latency
+          description: 95th percentile of request latency is above 1 second
+
+      - name: High Error Rate
+        condition: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) * 100 > 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: High error rate
+          description: Error rate is above 1% for 5 minutes
+
+      - name: High Memory Usage
+        condition: process_resident_memory_bytes / process_virtual_memory_bytes * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High memory usage
+          description: Application memory usage is above 80%
+
+  # Message Queue Alerts
+  - name: Message Queue
+    folder: Messaging
+    interval: 1m
+    rules:
+      - name: Message Processing Delay
+        condition: message_processing_duration_seconds > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Message processing delay
+          description: Messages are taking more than 5 seconds to process
+
+      - name: Failed Message Processing
+        condition: rate(message_processing_errors_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Message processing failures
+          description: Messages are failing to process
+
+      - name: High Message Rate
+        condition: rate(messages_sent_total[5m]) > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High message rate
+          description: More than 1000 messages per second are being sent
+
+  # System Health Alerts
+  - name: System Health
+    folder: System
+    interval: 1m
+    rules:
+      - name: Disk Space Usage
+        condition: (node_filesystem_size_bytes - node_filesystem_free_bytes) / node_filesystem_size_bytes * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High disk space usage
+          description: Disk space usage is above 85%
+
+      - name: High Load Average
+        condition: node_load1 > count(node_cpu_seconds_total{mode="idle"}) * 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High system load
+          description: System load is above 80% of CPU cores
+
+      - name: Network Errors
+        condition: rate(node_network_transmit_errs_total[5m]) + rate(node_network_receive_errs_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Network errors detected
+          description: Network interface is experiencing errors 

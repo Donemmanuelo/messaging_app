@@ -1,45 +1,27 @@
-use chrono::{Duration, Utc};
-use jsonwebtoken::{encode, decode, Header, EncodingKey, DecodingKey, Validation};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-use axum::http::StatusCode;
+use chrono::{Duration, Utc};
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Claims {
-    pub sub: String, // user_id
-    pub exp: usize,  // expiration time
-    pub iat: usize,  // issued at
-}
+use crate::models::Claims;
 
-pub fn create_jwt_token(
-    user_id: Uuid,
-    secret: &str,
-    duration: Duration,
-) -> Result<String, StatusCode> {
-    let now = Utc::now();
-    let exp = (now + duration).timestamp() as usize;
-    let iat = now.timestamp() as usize;
-
+pub fn create_token(user_id: i32, secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
     let claims = Claims {
-        sub: user_id.to_string(),
-        exp,
-        iat,
+        sub: user_id,
+        exp: (Utc::now() + Duration::days(7)).timestamp(),
     };
 
     encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(secret.as_ref()),
+        &EncodingKey::from_secret(secret.as_bytes()),
     )
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
-pub fn verify_jwt_token(token: &str, secret: &str) -> Result<Claims, StatusCode> {
+pub fn verify_token(token: &str, secret: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
     decode::<Claims>(
         token,
-        &DecodingKey::from_secret(secret.as_ref()),
+        &DecodingKey::from_secret(secret.as_bytes()),
         &Validation::default(),
     )
     .map(|data| data.claims)
-    .map_err(|_| StatusCode::UNAUTHORIZED)
 }

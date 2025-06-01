@@ -1,133 +1,129 @@
 use axum::{
-    extract::State,
+    extract::{Json, State},
     http::StatusCode,
-    response::Json,
+    response::IntoResponse,
 };
-use serde_json::{json, Value};
-use uuid::Uuid;
 use bcrypt::{hash, verify, DEFAULT_COST};
-use jsonwebtoken::{encode, Header, EncodingKey};
-use chrono::{Duration, Utc};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use crate::{
-    handlers::AppState,
-    models::{CreateUserRequest, LoginRequest, AuthResponse, User, UserResponse},
-    services::jwt::{Claims, create_jwt_token},
+    auth::{create_token, AuthUser},
+    error::AppError,
+    models::{CreateUserRequest, UserResponse},
+    AppState,
 };
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LoginRequest {
+    pub email: String,
+    pub password: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TokenResponse {
+    pub token: String,
+    pub user: UserResponse,
+}
+
 pub async fn register(
-    State(state): State<AppState>,
-    Json(payload): Json<CreateUserRequest>,
-) -> Result<Json<Value>, StatusCode> {
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<CreateUserRequest>,
+) -> Result<impl IntoResponse, AppError> {
     // Check if user already exists
-    let existing_user = sqlx::query_as::<_, User>(
-        "SELECT * FROM users WHERE email = $1 OR username = $2"
+    let existing_user = sqlx::query!(
+        "SELECT 1 FROM users WHERE email = $1",
+        req.email
     )
-    .bind(&payload.email)
-    .bind(&payload.username)
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .fetch_optional(&state.pool)
+    .await?;
 
     if existing_user.is_some() {
-        return Err(StatusCode::CONFLICT);
+        return Err(AppError::BadRequest("User already exists".to_string()));
     }
 
     // Hash password
-    let password_hash = hash(payload.password, DEFAULT_COST)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let hashed_password = hash(req.password.as_bytes(), DEFAULT_COST)?;
 
     // Create user
-    let user_id = Uuid::new_v4();
-    let now = Utc::now();
-
-    let user = sqlx::query_as::<_, User>(
-        r#"
-        INSERT INTO users (id, username, email, password_hash, display_name, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING *
-        "#
+    let user = sqlx::query_as!(
+        User,
+        "INSERT INTO users (email, password, display_name) VALUES ($1, $2, $3) RETURNING *",
+        req.email,
+        hashed_password,
+        req.display_name
     )
-    .bind(user_id)
-    .bind(&payload.username)
-    .bind(&payload.email)
-    .bind(&password_hash)
-    .bind(&payload.display_name)
-    .bind(now)
-    .bind(now)
-    .fetch_one(&state.db.pool)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .fetch_one(&state.pool)
+    .await?;
 
-    // Generate JWT tokens
-    let access_token = create_jwt_token(user.id, &state.config.jwt_secret, Duration::hours(24))?;
-    let refresh_token = create_jwt_token(user.id, &state.config.jwt_secret, Duration::days(30))?;
+    // Generate token
+    let token = create_token(user.id)?;
 
-    let response = AuthResponse {
-        user: user.into(),
-        access_token,
-        refresh_token,
-    };
-
-    Ok(Json(json!(response)))
+    Ok((
+        StatusCode::CREATED,
+        Json(TokenResponse {
+            token,
+            user: user.into(),
+        }),
+    ))
 }
 
 pub async fn login(
-    State(state): State<AppState>,
-    Json(payload): Json<LoginRequest>,
-) -> Result<Json<Value>, StatusCode> {
-    // Find user
-    let user = sqlx::query_as::<_, User>(
-        "SELECT * FROM users WHERE email = $1"
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<LoginRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    // Get user by email
+    let user = sqlx::query_as!(
+        User,
+        "SELECT * FROM users WHERE email = $1",
+        req.email
     )
-    .bind(&payload.email)
-    .fetch_optional(&state.db.pool)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::UNAUTHORIZED)?;
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("Invalid credentials".to_string()))?;
 
     // Verify password
-    if !verify(&payload.password, &user.password_hash)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)? {
-        return Err(StatusCode::UNAUTHORIZED);
+    if !verify(req.password, &user.password)? {
+        return Err(AppError::BadRequest("Invalid credentials".to_string()));
     }
 
-    // Update user online status
-    sqlx::query(
-        "UPDATE users SET is_online = true, last_seen = $1 WHERE id = $2"
-    )
-    .bind(Utc::now())
-    .bind(user.id)
-    .execute(&state.db.pool)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // Generate token
+    let token = create_token(user.id)?;
 
-    // Generate JWT tokens
-    let access_token = create_jwt_token(user.id, &state.config.jwt_secret, Duration::hours(24))?;
-    let refresh_token = create_jwt_token(user.id, &state.config.jwt_secret, Duration::days(30))?;
-
-    let response = AuthResponse {
-        user: user.into(),
-        access_token,
-        refresh_token,
-    };
-
-    Ok(Json(json!(response)))
+    Ok((
+        StatusCode::OK,
+        Json(TokenResponse {
+            token,
+            user: user.into(),
+        }),
+    ))
 }
 
-pub async fn logout(
-    State(state): State<AppState>,
-    // Add JWT middleware to extract user_id
-) -> Result<Json<Value>, StatusCode> {
-    // In a real implementation, you'd extract user_id from JWT middleware
-    // For now, this is a placeholder
-    Ok(Json(json!({"message": "Logged out successfully"})))
+pub async fn logout() -> impl IntoResponse {
+    StatusCode::NO_CONTENT
 }
 
 pub async fn refresh_token(
-    State(state): State<AppState>,
-    Json(payload): Json<Value>,
-) -> Result<Json<Value>, StatusCode> {
-    // Implementation for refreshing JWT tokens
-    Ok(Json(json!({"message": "Token refreshed"})))
+    State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
+) -> Result<impl IntoResponse, AppError> {
+    // Get user
+    let user = sqlx::query_as!(
+        User,
+        "SELECT * FROM users WHERE id = $1",
+        auth_user.id
+    )
+    .fetch_one(&state.pool)
+    .await?;
+
+    // Generate new token
+    let token = create_token(user.id)?;
+
+    Ok((
+        StatusCode::OK,
+        Json(TokenResponse {
+            token,
+            user: user.into(),
+        }),
+    ))
 }

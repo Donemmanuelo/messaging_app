@@ -65,3 +65,10 @@ impl From<User> for UserResponse {
         }
     }
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateProfileRequest {
+    pub username: Option<String>,
+    pub avatar_url: Option<String>,
+    pub status: Option<String>,
+}
