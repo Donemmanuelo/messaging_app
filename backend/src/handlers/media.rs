@@ -16,6 +16,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use cloudinary::{Cloudinary, upload::{upload_file, delete_file, UploadResult, UploadOptions}};
+use tracing::{error, info};
 
 const MAX_FILE_SIZE: usize = 10 * 1024 * 1024; // 10MB
 const ALLOWED_IMAGE_TYPES: [&str; 3] = ["image/jpeg", "image/png", "image/gif"];
@@ -37,7 +38,10 @@ pub async fn upload_media(
     let mut media_type = None;
     let mut content_type = None;
 
-    while let Some(field) = multipart.next_field().await.map_err(|_| AppError::BadRequest("Failed to parse multipart form".into()))? {
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        error!("Failed to parse multipart form: {}", e);
+        AppError::BadRequest("Failed to parse multipart form".into())
+    })? {
         let name = field.name().unwrap_or_default();
         match name {
             "file" => {
@@ -53,12 +57,22 @@ pub async fn upload_media(
         }
     }
 
-    let file = file.ok_or_else(|| AppError::BadRequest("No file provided".into()))?;
-    let media_type = media_type.ok_or_else(|| AppError::BadRequest("No media type provided".into()))?;
-    let content_type = content_type.ok_or_else(|| AppError::BadRequest("No content type provided".into()))?;
+    let file = file.ok_or_else(|| {
+        error!("No file provided in the request");
+        AppError::BadRequest("No file provided".into())
+    })?;
+    let media_type = media_type.ok_or_else(|| {
+        error!("No media type provided in the request");
+        AppError::BadRequest("No media type provided".into())
+    })?;
+    let content_type = content_type.ok_or_else(|| {
+        error!("No content type provided in the request");
+        AppError::BadRequest("No content type provided".into())
+    })?;
 
     // Validate file size
     if file.len() > MAX_FILE_SIZE {
+        error!("File size exceeds maximum limit: {} bytes", file.len());
         return Err(AppError::BadRequest(format!(
             "File size exceeds maximum limit of {}MB",
             MAX_FILE_SIZE / (1024 * 1024)
@@ -74,6 +88,7 @@ pub async fn upload_media(
     };
 
     if !is_valid_type {
+        error!("Invalid content type {} for media type {}", content_type, media_type);
         return Err(AppError::BadRequest(format!(
             "Invalid content type {} for media type {}",
             content_type, media_type
@@ -94,7 +109,10 @@ pub async fn upload_media(
         upload_options,
     )
     .await
-    .map_err(|e| AppError::InternalServerError(format!("Failed to upload to Cloudinary: {}", e)))?;
+    .map_err(|e| {
+        error!("Failed to upload to Cloudinary: {}", e);
+        AppError::InternalServerError(format!("Failed to upload to Cloudinary: {}", e))
+    })?;
 
     // Store media info in database
     let media_id = Uuid::new_v4();
@@ -111,8 +129,12 @@ pub async fn upload_media(
     )
     .execute(&pool)
     .await
-    .map_err(|e| AppError::InternalServerError(format!("Failed to store media info: {}", e)))?;
+    .map_err(|e| {
+        error!("Failed to store media info: {}", e);
+        AppError::InternalServerError(format!("Failed to store media info: {}", e))
+    })?;
 
+    info!("Media uploaded successfully: {}", media_id);
     Ok(Json(MediaUploadResponse {
         id: media_id,
         url: upload_result.secure_url,
@@ -135,8 +157,14 @@ pub async fn delete_media(
     )
     .fetch_optional(&pool)
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .map_err(|e| {
+        error!("Failed to fetch media info: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?
+    .ok_or_else(|| {
+        error!("Media not found: {}", media_id);
+        StatusCode::NOT_FOUND
+    })?;
 
     // Check ownership
     if media.user_id != claims.sub {
@@ -152,7 +180,10 @@ pub async fn delete_media(
 
     delete_file(&cloudinary, &media.public_id)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            error!("Failed to delete from Cloudinary: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     // Delete from database
     sqlx::query!(
@@ -164,7 +195,11 @@ pub async fn delete_media(
     )
     .execute(&pool)
     .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|e| {
+        error!("Failed to delete media from database: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
+    info!("Media deleted successfully: {}", media_id);
     Ok(StatusCode::OK)
 }

@@ -1,0 +1,5 @@
+[sqlx]
+offline = true
+
+[build]
+rustflags = ["-C", "target-cpu=native"] 

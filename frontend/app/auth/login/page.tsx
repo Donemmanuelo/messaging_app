@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useForm } from 'react-hook-form'
@@ -17,8 +16,8 @@ export default function LoginPage() {
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>()
 
   const onSubmit = async (data: LoginForm) => {
-    const success = await login(data.email, data.password)
-    if (success) {
+    const result = await login(data.email, data.password)
+    if (typeof result === 'boolean' && result) {
       router.push('/chat')
     }
   }

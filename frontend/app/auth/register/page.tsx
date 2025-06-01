@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useForm } from 'react-hook-form'
@@ -16,19 +15,15 @@ interface RegisterForm {
 
 export default function RegisterPage() {
   const router = useRouter()
-  const { register: registerUser, isLoading } = useAuthStore()
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<RegisterForm>()
+  const authStore = useAuthStore()
+  const isLoading = authStore.isLoading
+  const { register: formRegister, handleSubmit, watch, formState: { errors } } = useForm<RegisterForm>()
 
   const password = watch('password')
 
   const onSubmit = async (data: RegisterForm) => {
-    const success = await registerUser(
-      data.username,
-      data.email,
-      data.password,
-      data.displayName
-    )
-    if (success) {
+    const result = await authStore.register(data.username, data.email, data.password);
+    if (typeof result === 'boolean' && result) {
       router.push('/chat')
     }
   }
@@ -47,7 +42,7 @@ export default function RegisterPage() {
               Username
             </label>
             <input
-              {...register('username', { 
+              {...formRegister('username', { 
                 required: 'Username is required',
                 minLength: {
                   value: 3,
@@ -68,7 +63,7 @@ export default function RegisterPage() {
               Display Name (Optional)
             </label>
             <input
-              {...register('displayName')}
+              {...formRegister('displayName')}
               type="text"
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-whatsapp-green focus:border-whatsapp-green"
               placeholder="Enter your display name"
@@ -80,7 +75,7 @@ export default function RegisterPage() {
               Email
             </label>
             <input
-              {...register('email', { 
+              {...formRegister('email', { 
                 required: 'Email is required',
                 pattern: {
                   value: /^\S+@\S+$/i,
@@ -101,7 +96,7 @@ export default function RegisterPage() {
               Password
             </label>
             <input
-              {...register('password', { 
+              {...formRegister('password', { 
                 required: 'Password is required',
                 minLength: {
                   value: 6,
@@ -122,7 +117,7 @@ export default function RegisterPage() {
               Confirm Password
             </label>
             <input
-              {...register('confirmPassword', { 
+              {...formRegister('confirmPassword', { 
                 required: 'Please confirm your password',
                 validate: value => value === password || 'Passwords do not match'
               })}
