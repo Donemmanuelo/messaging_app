@@ -12,11 +12,11 @@ mod auth;
 pub mod config;
 pub mod database;
 mod error;
-mod handlers;
+pub mod handlers;
 pub mod middleware;
-mod models;
+pub mod models;
 pub mod services;
-mod websocket;
+pub mod websocket;
 
 pub use auth::AuthUser;
 pub use error::AppError;

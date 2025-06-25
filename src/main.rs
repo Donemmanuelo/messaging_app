@@ -1,12 +1,23 @@
+use axum::http::{HeaderValue, Method};
+use tower_http::cors::CorsLayer;
+
 let database_url = env::var("DATABASE_URL").map_err(|_| "DATABASE_URL must be set")?;
 let redis_url = env::var("REDIS_URL").map_err(|_| "REDIS_URL must be set")?;
 let cors = CorsLayer::new()
-    .allow_origin(
-        env::var("FRONTEND_URL")
-            .unwrap_or_else(|_| "http://localhost:3000".to_string())
-            .parse::<HeaderValue>()
-            .map_err(|_| "Invalid FRONTEND_URL")?,
-    )
+    .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
+    .allow_methods([
+        Method::GET,
+        Method::POST,
+        Method::PUT,
+        Method::DELETE,
+        Method::OPTIONS,
+    ])
+    .allow_headers([
+        axum::http::header::AUTHORIZATION,
+        axum::http::header::CONTENT_TYPE,
+        axum::http::header::ACCEPT,
+    ])
+    .allow_credentials(true);
 let port = env::var("PORT").unwrap_or_else(|_| "3000".to_string());
 let addr = format!("0.0.0.0:{}", port);
 let server = axum::Server::bind(&addr.parse()?);

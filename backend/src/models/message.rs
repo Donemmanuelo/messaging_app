@@ -16,7 +16,7 @@ pub struct Message {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CreateMessageRequest {
     pub chat_id: Uuid,
     pub content: String,

@@ -119,13 +119,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // CORS configuration
     let cors = CorsLayer::new()
-        .allow_origin(
-            env::var("FRONTEND_URL")
-                .unwrap_or_else(|_| "http://localhost:3000".to_string())
-                .parse::<HeaderValue>()
-                .unwrap(),
-        )
-        .allow_methods(tower_http::cors::Any)
+        .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
         .allow_headers([
             axum::http::header::AUTHORIZATION,
             axum::http::header::CONTENT_TYPE,
