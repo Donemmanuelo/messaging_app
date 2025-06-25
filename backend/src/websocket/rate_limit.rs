@@ -66,7 +66,9 @@ impl ConnectionPool {
     }
 
     pub fn can_connect(&self, user_id: Uuid) -> bool {
-        self.connections.get(&user_id).map_or(true, |&count| count < self.max_connections)
+        self.connections
+            .get(&user_id)
+            .map_or(true, |&count| count < self.max_connections)
     }
 
     pub fn add_connection(&mut self, user_id: Uuid) {
@@ -96,7 +98,7 @@ impl WebSocketManager {
         Self {
             rate_limiter: Arc::new(RwLock::new(RateLimiter::new(
                 Duration::from_secs(60), // 1 minute window
-                100, // 100 requests per minute
+                100,                     // 100 requests per minute
             ))),
             connection_pool: Arc::new(RwLock::new(ConnectionPool::new(3))), // 3 connections per user
         }
@@ -115,10 +117,13 @@ impl WebSocketManager {
     }
 
     pub async fn remove_connection(&self, user_id: Uuid) {
-        self.connection_pool.write().await.remove_connection(user_id);
+        self.connection_pool
+            .write()
+            .await
+            .remove_connection(user_id);
     }
 
     pub async fn cleanup(&self) {
         self.rate_limiter.write().await.cleanup();
     }
-} 
+}

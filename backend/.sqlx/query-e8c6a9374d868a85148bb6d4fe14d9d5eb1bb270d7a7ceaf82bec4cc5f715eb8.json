@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT \n            gm.id,\n            gm.user_id,\n            u.display_name,\n            u.avatar_url,\n            gm.role,\n            gm.joined_at\n        FROM group_members gm\n        JOIN users u ON u.id = gm.user_id\n        WHERE gm.group_id = $1\n        ORDER BY \n            CASE gm.role\n                WHEN 'owner' THEN 1\n                WHEN 'admin' THEN 2\n                ELSE 3\n            END,\n            gm.joined_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "display_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "avatar_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "role",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "joined_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "e8c6a9374d868a85148bb6d4fe14d9d5eb1bb270d7a7ceaf82bec4cc5f715eb8"
+}

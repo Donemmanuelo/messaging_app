@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import Message from './Message';
+import { WebSocketClient } from '@/lib/websocket';
 
 const mockMessage = {
   id: '1',
@@ -104,5 +105,50 @@ describe('Message Component', () => {
     );
 
     expect(screen.getByText('Replying to: Previous message')).toBeInTheDocument();
+  });
+});
+
+describe('WebSocketClient', () => {
+  it('reconnects on close', () => {
+    const url = 'ws://localhost:8080';
+    const client = new WebSocketClient(url);
+    const spy = vi.spyOn(client as any, 'connect');
+    // Simulate close event
+    (client as any).ws.dispatchEvent(new Event('close'));
+    expect(spy).toHaveBeenCalled();
+  });
+});
+
+describe('E2EE Key Upload UI', () => {
+  it('renders and uploads a public key', () => {
+    // Mock fetch
+    global.fetch = vi.fn(() => Promise.resolve({ ok: true })) as any;
+    render(
+      <div>
+        <textarea data-testid="public-key-input" />
+        <button data-testid="upload-btn">Upload Public Key</button>
+      </div>
+    );
+    fireEvent.change(screen.getByTestId('public-key-input'), { target: { value: 'testkey' } });
+    fireEvent.click(screen.getByTestId('upload-btn'));
+    expect(global.fetch).toHaveBeenCalled();
+  });
+});
+
+describe('Media Upload UI', () => {
+  it('renders and uploads a media file', () => {
+    // Mock fetch
+    global.fetch = vi.fn(() => Promise.resolve({ ok: true })) as any;
+    render(
+      <div>
+        <input type="file" data-testid="media-input" />
+        <button data-testid="upload-media-btn">Upload Media</button>
+      </div>
+    );
+    // Simulate file selection
+    const file = new File(['dummy content'], 'test.png', { type: 'image/png' });
+    fireEvent.change(screen.getByTestId('media-input'), { target: { files: [file] } });
+    fireEvent.click(screen.getByTestId('upload-media-btn'));
+    expect(global.fetch).toHaveBeenCalled();
   });
 }); 

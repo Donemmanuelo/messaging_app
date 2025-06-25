@@ -1,9 +1,9 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Serialize, Deserialize, FromRow, Clone)]
 pub struct User {
     pub id: Uuid,
     pub username: String,
@@ -16,9 +16,13 @@ pub struct User {
     pub is_online: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Public key for end-to-end encryption (E2EE)
+    pub public_key: Option<String>,
+    /// Encrypted private key for E2EE (should be encrypted with user's password)
+    pub private_key_encrypted: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct UserResponse {
     pub id: Uuid,
     pub username: String,
@@ -28,6 +32,8 @@ pub struct UserResponse {
     pub status: Option<String>,
     pub last_seen: Option<DateTime<Utc>>,
     pub is_online: bool,
+    /// Public key for end-to-end encryption (E2EE)
+    pub public_key: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,6 +68,7 @@ impl From<User> for UserResponse {
             status: user.status,
             last_seen: user.last_seen,
             is_online: user.is_online,
+            public_key: user.public_key,
         }
     }
 }

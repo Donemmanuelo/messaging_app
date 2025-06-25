@@ -1,0 +1,74 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE messages\n        SET content = $1, media_url = $2, media_type = $3, reply_to_id = $4, updated_at = NOW()\n        WHERE id = $5\n        RETURNING id, chat_id, sender_id, content, media_url, media_type, reply_to_id, created_at, updated_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "chat_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "sender_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "content",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "media_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "media_type",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "reply_to_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Varchar",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "eb6bf48164503d01e64bc2716372b4e9b243cd909ba26063959af4e8253ab4bd"
+}

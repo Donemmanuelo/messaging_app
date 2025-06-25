@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH reaction_users AS (\n            SELECT u.*\n            FROM message_reactions mr\n            JOIN users u ON u.id = mr.user_id\n            WHERE mr.message_id = $1 AND mr.emoji = $2\n        )\n        SELECT \n            $2 as emoji,\n            COUNT(*) as count,\n            COALESCE(json_agg(json_build_object(\n                'id', u.id,\n                'username', u.username,\n                'email', u.email,\n                'created_at', u.created_at\n            )), '[]') as users\n        FROM reaction_users u\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "emoji",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "users",
+        "type_info": "Json"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "8b7c165a8ff553bbab4c09d30faa29e4fd6196d6bc88262483d8e66c66e3d7cf"
+}

@@ -1,23 +1,20 @@
+use crate::{
+    error::AppError,
+    models::message::{
+        CreateMessageRequest, GroupMessageResponse, MessageResponse, UpdateMessageRequest,
+    },
+    AppState,
+};
 use axum::{
-    extract::{Path, State, Query},
+    extract::{Path, Query, State},
     http::StatusCode,
+    response::IntoResponse,
     Json,
 };
 use serde::Deserialize;
-use sqlx::PgPool;
-use uuid::Uuid;
-use crate::{
-    AppState,
-    error::AppError,
-    models::{
-        message::{
-            Message, MessageResponse, GroupMessageResponse,
-            CreateMessageRequest, UpdateMessageRequest,
-        },
-    },
-    auth::Claims,
-};
 use std::sync::Arc;
+use uuid::Uuid;
+use crate::middleware::AuthUser;
 
 const MAX_MESSAGE_LENGTH: usize = 4000;
 
@@ -27,15 +24,76 @@ pub struct MessageQuery {
     pub limit: Option<i64>,
 }
 
+#[derive(sqlx::FromRow)]
+struct MessageWithSender {
+    id: Uuid,
+    chat_id: Uuid,
+    sender_id: Uuid,
+    content: Option<String>,
+    media_url: Option<String>,
+    media_type: Option<String>,
+    reply_to_id: Option<Uuid>,
+    created_at: chrono::DateTime<chrono::Utc>,
+    updated_at: chrono::DateTime<chrono::Utc>,
+    sender_name: String,
+    sender_avatar: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct GroupMessageWithSenderAndGroup {
+    id: Uuid,
+    chat_id: Uuid,
+    sender_id: Uuid,
+    content: Option<String>,
+    media_url: Option<String>,
+    media_type: Option<String>,
+    reply_to_id: Option<Uuid>,
+    created_at: chrono::DateTime<chrono::Utc>,
+    updated_at: chrono::DateTime<chrono::Utc>,
+    sender_name: String,
+    sender_avatar: Option<String>,
+    group_name: String,
+    group_avatar: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct MessageInsertResult {
+    id: Uuid,
+    chat_id: Uuid,
+    sender_id: Uuid,
+    content: Option<String>,
+    media_url: Option<String>,
+    media_type: Option<String>,
+    reply_to_id: Option<Uuid>,
+    created_at: chrono::DateTime<chrono::Utc>,
+    updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(sqlx::FromRow)]
+struct GroupMessageInsertResult {
+    id: Uuid,
+    chat_id: Uuid,
+    sender_id: Uuid,
+    content: String,
+    media_url: Option<String>,
+    media_type: Option<String>,
+    reply_to_id: Option<Uuid>,
+    created_at: chrono::DateTime<chrono::Utc>,
+    updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[axum::debug_handler]
 pub async fn send_message(
     State(state): State<Arc<AppState>>,
-    claims: Claims,
+    auth_user: AuthUser,
     Path(receiver_id): Path<Uuid>,
     Json(req): Json<CreateMessageRequest>,
-) -> Result<Json<MessageResponse>, AppError> {
+) -> Result<impl IntoResponse, AppError> {
     // Input validation
     if req.content.trim().is_empty() {
-        return Err(AppError::BadRequest("Message content cannot be empty".into()));
+        return Err(AppError::BadRequest(
+            "Message content cannot be empty".into(),
+        ));
     }
     if req.content.len() > MAX_MESSAGE_LENGTH {
         return Err(AppError::BadRequest(format!(
@@ -47,30 +105,29 @@ pub async fn send_message(
     let message_id = Uuid::new_v4();
 
     // Save message to database
-    let message = sqlx::query_as!(
-        Message,
+    let message = sqlx::query_as::<_, MessageInsertResult>(
         r#"
-        INSERT INTO messages (id, sender_id, receiver_id, content, media_url, created_at)
-        VALUES ($1, $2, $3, $4, $5, NOW())
-        RETURNING *
-        "#,
-        message_id,
-        claims.sub,
-        receiver_id,
-        req.content,
-        req.media_url
+        INSERT INTO messages (id, chat_id, sender_id, content, media_url, media_type, reply_to_id, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+        RETURNING id, chat_id, sender_id, content, media_url, media_type, reply_to_id, created_at, updated_at
+        "#
     )
+    .bind(message_id)
+    .bind(req.chat_id)
+    .bind(auth_user.id)
+    .bind(req.content)
+    .bind(req.media_url)
+    .bind(req.media_type)
+    .bind(req.reply_to_id)
     .fetch_one(&state.pool)
     .await?;
 
     // Get sender info
     let sender = sqlx::query!(
         r#"
-        SELECT display_name, avatar_url
-        FROM users
-        WHERE id = $1
+        SELECT display_name, avatar_url FROM users WHERE id = $1
         "#,
-        claims.sub
+        auth_user.id
     )
     .fetch_one(&state.pool)
     .await?;
@@ -78,27 +135,32 @@ pub async fn send_message(
     Ok(Json(MessageResponse {
         id: message.id,
         sender_id: message.sender_id,
-        receiver_id: message.receiver_id,
-        content: message.content,
+        receiver_id,
+        content: message.content.as_deref().unwrap_or("").to_string(),
         media_url: message.media_url,
+        media_type: message.media_type,
+        reply_to_id: message.reply_to_id,
         created_at: message.created_at,
         updated_at: message.updated_at,
-        is_edited: message.is_edited,
-        is_deleted: message.is_deleted,
-        sender_name: sender.display_name,
+        is_edited: false,
+        is_deleted: false,
+        sender_name: sender.display_name.unwrap_or_else(|| "Unknown".to_string()),
         sender_avatar: sender.avatar_url,
     }))
 }
 
+#[axum::debug_handler]
 pub async fn send_group_message(
     State(state): State<Arc<AppState>>,
-    claims: Claims,
+    auth_user: AuthUser,
     Path(group_id): Path<Uuid>,
     Json(req): Json<CreateMessageRequest>,
-) -> Result<Json<GroupMessageResponse>, AppError> {
+) -> Result<impl IntoResponse, AppError> {
     // Input validation
     if req.content.trim().is_empty() {
-        return Err(AppError::BadRequest("Message content cannot be empty".into()));
+        return Err(AppError::BadRequest(
+            "Message content cannot be empty".into(),
+        ));
     }
     if req.content.len() > MAX_MESSAGE_LENGTH {
         return Err(AppError::BadRequest(format!(
@@ -110,11 +172,11 @@ pub async fn send_group_message(
     // Verify user is a member of the group
     let is_member = sqlx::query!(
         r#"
-        SELECT 1 FROM group_members
+        SELECT 1 as exists FROM group_members
         WHERE group_id = $1 AND user_id = $2
         "#,
         group_id,
-        claims.sub
+        auth_user.id
     )
     .fetch_optional(&state.pool)
     .await?
@@ -127,19 +189,20 @@ pub async fn send_group_message(
     let message_id = Uuid::new_v4();
 
     // Save message to database
-    let message = sqlx::query_as!(
-        Message,
+    let message = sqlx::query_as::<_, GroupMessageInsertResult>(
         r#"
-        INSERT INTO messages (id, sender_id, receiver_id, content, media_url, created_at)
-        VALUES ($1, $2, $3, $4, $5, NOW())
-        RETURNING *
-        "#,
-        message_id,
-        claims.sub,
-        group_id,
-        req.content,
-        req.media_url
+        INSERT INTO messages (id, chat_id, sender_id, content, media_url, media_type, reply_to_id, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+        RETURNING id, chat_id, sender_id, content, media_url, media_type, reply_to_id, created_at, updated_at
+        "#
     )
+    .bind(message_id)
+    .bind(group_id)
+    .bind(auth_user.id)
+    .bind(req.content)
+    .bind(req.media_url)
+    .bind(req.media_type)
+    .bind(req.reply_to_id)
     .fetch_one(&state.pool)
     .await?;
 
@@ -150,7 +213,7 @@ pub async fn send_group_message(
         FROM users
         WHERE id = $1
         "#,
-        claims.sub
+        auth_user.id
     )
     .fetch_one(&state.pool)
     .await?;
@@ -170,78 +233,82 @@ pub async fn send_group_message(
     Ok(Json(GroupMessageResponse {
         id: message.id,
         sender_id: message.sender_id,
-        group_id: message.receiver_id,
-        content: message.content,
+        group_id: group_id,
+        content: message.content.to_string(),
         media_url: message.media_url,
+        media_type: message.media_type,
+        reply_to_id: message.reply_to_id,
         created_at: message.created_at,
         updated_at: message.updated_at,
-        is_edited: message.is_edited,
-        is_deleted: message.is_deleted,
-        sender_name: sender.display_name,
+        is_edited: false,
+        is_deleted: false,
+        sender_name: sender.display_name.unwrap_or_else(|| "Unknown".to_string()),
         sender_avatar: sender.avatar_url,
         group_name: group.name,
         group_avatar: group.avatar_url,
     }))
 }
 
+#[axum::debug_handler]
 pub async fn get_messages(
     State(state): State<Arc<AppState>>,
-    claims: Claims,
+    auth_user: AuthUser,
     Path(receiver_id): Path<Uuid>,
     Query(query): Query<MessageQuery>,
-) -> Result<Json<Vec<MessageResponse>>, AppError> {
-    let messages = sqlx::query!(
+) -> Result<impl IntoResponse, AppError> {
+    let messages = sqlx::query_as::<_, MessageWithSender>(
         r#"
         SELECT 
-            m.*,
-            u.display_name as sender_name,
-            u.avatar_url as sender_avatar
+            m.id as id, m.chat_id as chat_id, m.sender_id as sender_id, m.content as content, m.media_url as media_url, m.media_type as media_type, m.reply_to_id as reply_to_id, m.created_at as created_at, m.updated_at as updated_at,
+            u.display_name as sender_name, u.avatar_url as sender_avatar
         FROM messages m
         JOIN users u ON u.id = m.sender_id
-        WHERE 
-            ((m.sender_id = $1 AND m.receiver_id = $2) OR
-            (m.sender_id = $2 AND m.receiver_id = $1))
-            AND ($3::timestamptz IS NULL OR m.created_at < $3)
+        WHERE m.chat_id = $1
+        AND ($2::timestamptz IS NULL OR m.created_at < $2)
         ORDER BY m.created_at DESC
-        LIMIT $4
-        "#,
-        claims.sub,
-        receiver_id,
-        query.before,
-        query.limit.unwrap_or(50)
+        LIMIT $3
+        "#
     )
+    .bind(receiver_id)
+    .bind(query.before)
+    .bind(query.limit.unwrap_or(50))
     .fetch_all(&state.pool)
     .await?;
 
-    Ok(Json(messages.into_iter().map(|m| MessageResponse {
+    let messages: Vec<_> = messages.into_iter().map(|m| MessageResponse {
         id: m.id,
         sender_id: m.sender_id,
-        receiver_id: m.receiver_id,
-        content: m.content,
+        receiver_id: receiver_id,
+        content: m.content.as_deref().unwrap_or("").to_string(),
         media_url: m.media_url,
+        media_type: m.media_type,
+        reply_to_id: m.reply_to_id,
         created_at: m.created_at,
         updated_at: m.updated_at,
-        is_edited: m.is_edited,
-        is_deleted: m.is_deleted,
+        is_edited: false,
+        is_deleted: false,
         sender_name: m.sender_name,
         sender_avatar: m.sender_avatar,
-    }).collect()))
+    }).collect();
+
+    Ok(Json(messages))
 }
 
+#[axum::debug_handler]
 pub async fn get_group_messages(
     State(state): State<Arc<AppState>>,
-    claims: Claims,
+    auth_user: AuthUser,
     Path(group_id): Path<Uuid>,
     Query(query): Query<MessageQuery>,
-) -> Result<Json<Vec<GroupMessageResponse>>, AppError> {
+) -> Result<impl IntoResponse, AppError> {
     // Verify user is a member of the group
     let is_member = sqlx::query!(
         r#"
-        SELECT 1 FROM group_members
+        SELECT 1 as exists FROM group_members
         WHERE group_id = $1 AND user_id = $2
         "#,
         group_id,
-        claims.sub
+        auth_user.id
     )
     .fetch_optional(&state.pool)
     .await?
@@ -251,56 +318,60 @@ pub async fn get_group_messages(
         return Err(AppError::Forbidden("Not a member of this group".into()));
     }
 
-    let messages = sqlx::query!(
+    let messages = sqlx::query_as::<_, GroupMessageWithSenderAndGroup>(
         r#"
         SELECT 
-            m.*,
-            u.display_name as sender_name,
-            u.avatar_url as sender_avatar,
-            g.name as group_name,
-            g.avatar_url as group_avatar
+            m.id as id, m.chat_id as chat_id, m.sender_id as sender_id, m.content as content, m.media_url as media_url, m.media_type as media_type, m.reply_to_id as reply_to_id, m.created_at as created_at, m.updated_at as updated_at,
+            u.display_name as sender_name, u.avatar_url as sender_avatar,
+            g.name as group_name, g.avatar_url as group_avatar
         FROM messages m
         JOIN users u ON u.id = m.sender_id
-        JOIN groups g ON g.id = m.receiver_id
-        WHERE 
-            m.receiver_id = $1
-            AND ($2::timestamptz IS NULL OR m.created_at < $2)
+        JOIN groups g ON g.id = $1
+        WHERE m.chat_id = $1
+        AND ($2::timestamptz IS NULL OR m.created_at < $2)
         ORDER BY m.created_at DESC
         LIMIT $3
-        "#,
-        group_id,
-        query.before,
-        query.limit.unwrap_or(50)
+        "#
     )
+    .bind(group_id)
+    .bind(query.before)
+    .bind(query.limit.unwrap_or(50))
     .fetch_all(&state.pool)
     .await?;
 
-    Ok(Json(messages.into_iter().map(|m| GroupMessageResponse {
+    let messages: Vec<_> = messages.into_iter().map(|m| GroupMessageResponse {
         id: m.id,
         sender_id: m.sender_id,
-        group_id: m.receiver_id,
-        content: m.content,
+        group_id: group_id,
+        content: m.content.as_deref().unwrap_or("").to_string(),
         media_url: m.media_url,
+        media_type: m.media_type,
+        reply_to_id: m.reply_to_id,
         created_at: m.created_at,
         updated_at: m.updated_at,
-        is_edited: m.is_edited,
-        is_deleted: m.is_deleted,
+        is_edited: false,
+        is_deleted: false,
         sender_name: m.sender_name,
         sender_avatar: m.sender_avatar,
         group_name: m.group_name,
         group_avatar: m.group_avatar,
-    }).collect()))
+    }).collect();
+
+    Ok(Json(messages))
 }
 
+#[axum::debug_handler]
 pub async fn update_message(
     State(state): State<Arc<AppState>>,
-    claims: Claims,
+    auth_user: AuthUser,
     Path(message_id): Path<Uuid>,
     Json(req): Json<UpdateMessageRequest>,
-) -> Result<Json<MessageResponse>, AppError> {
+) -> Result<impl IntoResponse, AppError> {
     // Input validation
     if req.content.trim().is_empty() {
-        return Err(AppError::BadRequest("Message content cannot be empty".into()));
+        return Err(AppError::BadRequest(
+            "Message content cannot be empty".into(),
+        ));
     }
     if req.content.len() > MAX_MESSAGE_LENGTH {
         return Err(AppError::BadRequest(format!(
@@ -311,9 +382,10 @@ pub async fn update_message(
 
     // Get the message
     let message = sqlx::query_as!(
-        Message,
+        MessageInsertResult,
         r#"
-        SELECT * FROM messages
+        SELECT id, chat_id, sender_id, content, media_url, media_type, reply_to_id, created_at, updated_at
+        FROM messages
         WHERE id = $1
         "#,
         message_id
@@ -323,20 +395,25 @@ pub async fn update_message(
     .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
 
     // Check if user is the sender
-    if message.sender_id != claims.sub {
-        return Err(AppError::Forbidden("Cannot edit another user's message".into()));
+    if message.sender_id != auth_user.id {
+        return Err(AppError::Forbidden(
+            "Cannot edit another user's message".into(),
+        ));
     }
 
     // Update the message
     let updated_message = sqlx::query_as!(
-        Message,
+        MessageInsertResult,
         r#"
         UPDATE messages
-        SET content = $1, updated_at = NOW(), is_edited = true
-        WHERE id = $2
-        RETURNING *
+        SET content = $1, media_url = $2, media_type = $3, reply_to_id = $4, updated_at = NOW()
+        WHERE id = $5
+        RETURNING id, chat_id, sender_id, content, media_url, media_type, reply_to_id, created_at, updated_at
         "#,
-        req.content,
+        Some(req.content),
+        req.media_url,
+        req.media_type,
+        req.reply_to_id,
         message_id
     )
     .fetch_one(&state.pool)
@@ -349,7 +426,7 @@ pub async fn update_message(
         FROM users
         WHERE id = $1
         "#,
-        claims.sub
+        auth_user.id
     )
     .fetch_one(&state.pool)
     .await?;
@@ -357,28 +434,32 @@ pub async fn update_message(
     Ok(Json(MessageResponse {
         id: updated_message.id,
         sender_id: updated_message.sender_id,
-        receiver_id: updated_message.receiver_id,
-        content: updated_message.content,
+        receiver_id: updated_message.chat_id,
+        content: updated_message.content.as_deref().unwrap_or("").to_string(),
         media_url: updated_message.media_url,
+        media_type: updated_message.media_type,
+        reply_to_id: updated_message.reply_to_id,
         created_at: updated_message.created_at,
         updated_at: updated_message.updated_at,
-        is_edited: updated_message.is_edited,
-        is_deleted: updated_message.is_deleted,
-        sender_name: sender.display_name,
+        is_edited: false,
+        is_deleted: false,
+        sender_name: sender.display_name.unwrap_or_else(|| "Unknown".to_string()),
         sender_avatar: sender.avatar_url,
     }))
 }
 
+#[axum::debug_handler]
 pub async fn delete_message(
     State(state): State<Arc<AppState>>,
-    claims: Claims,
+    auth_user: AuthUser,
     Path(message_id): Path<Uuid>,
-) -> Result<StatusCode, AppError> {
+) -> Result<impl IntoResponse, AppError> {
     // Get the message
     let message = sqlx::query_as!(
-        Message,
+        MessageInsertResult,
         r#"
-        SELECT * FROM messages
+        SELECT id, chat_id, sender_id, content, media_url, media_type, reply_to_id, created_at, updated_at
+        FROM messages
         WHERE id = $1
         "#,
         message_id
@@ -388,21 +469,24 @@ pub async fn delete_message(
     .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
 
     // Check if user is the sender
-    if message.sender_id != claims.sub {
-        return Err(AppError::Forbidden("Cannot delete another user's message".into()));
+    if message.sender_id != auth_user.id {
+        return Err(AppError::Forbidden(
+            "Cannot delete another user's message".into(),
+        ));
     }
 
     // Soft delete the message
     sqlx::query!(
         r#"
         UPDATE messages
-        SET is_deleted = true, content = '', media_url = NULL
-        WHERE id = $1
+        SET content = $1, media_url = NULL, media_type = NULL, reply_to_id = NULL
+        WHERE id = $2
         "#,
+        Some(String::new()),
         message_id
     )
     .execute(&state.pool)
     .await?;
 
     Ok(StatusCode::NO_CONTENT)
-} 
+}

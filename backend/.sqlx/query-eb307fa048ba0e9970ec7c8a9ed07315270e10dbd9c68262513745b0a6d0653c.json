@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO chat_participants (chat_id, user_id) VALUES ($1::uuid, $2::uuid)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "eb307fa048ba0e9970ec7c8a9ed07315270e10dbd9c68262513745b0a6d0653c"
+}

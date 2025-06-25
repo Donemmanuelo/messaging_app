@@ -5,9 +5,9 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use redis::{Client as RedisClient, Commands};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use redis::{Client as RedisClient, Commands};
 
 use crate::error::AppError;
 
@@ -15,6 +15,7 @@ use crate::error::AppError;
 pub struct Claims {
     pub sub: String,
     pub exp: usize,
+    pub iat: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -65,28 +66,20 @@ where
                     .into_response()
             })?;
 
-        let token = auth_header
-            .strip_prefix("Bearer ")
-            .ok_or_else(|| {
-                (
-                    StatusCode::UNAUTHORIZED,
-                    "Invalid Authorization header format".to_string(),
-                )
-                    .into_response()
-            })?;
+        let token = auth_header.strip_prefix("Bearer ").ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                "Invalid Authorization header format".to_string(),
+            )
+                .into_response()
+        })?;
 
         let token_data = decode::<Claims>(
             token,
             &DecodingKey::from_secret(std::env::var("JWT_SECRET").unwrap().as_bytes()),
             &Validation::default(),
         )
-        .map_err(|_| {
-            (
-                StatusCode::UNAUTHORIZED,
-                "Invalid token".to_string(),
-            )
-                .into_response()
-        })?;
+        .map_err(|_| (StatusCode::UNAUTHORIZED, "Invalid token".to_string()).into_response())?;
 
         let user_id = Uuid::parse_str(&token_data.claims.sub).map_err(|_| {
             (
@@ -101,6 +94,7 @@ where
 }
 
 pub fn create_token(user_id: Uuid) -> Result<String, AppError> {
+    let now = chrono::Utc::now().timestamp() as usize;
     let expiration = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::hours(24))
         .expect("valid timestamp")
@@ -109,6 +103,7 @@ pub fn create_token(user_id: Uuid) -> Result<String, AppError> {
     let claims = Claims {
         sub: user_id.to_string(),
         exp: expiration,
+        iat: now,
     };
 
     let token = encode(
@@ -118,4 +113,4 @@ pub fn create_token(user_id: Uuid) -> Result<String, AppError> {
     )?;
 
     Ok(token)
-} 
+}

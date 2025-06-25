@@ -15,7 +15,7 @@ impl RedisService {
 
     pub fn set(&self, key: &str, value: &str, expiry: usize) -> Result<(), RedisError> {
         let mut conn = self.client.get_connection()?;
-        conn.set_ex(key, value, expiry)
+        conn.set_ex(key, value, expiry as u64)
     }
 
     pub fn get(&self, key: &str) -> Result<Option<String>, RedisError> {
@@ -27,4 +27,4 @@ impl RedisService {
         let mut conn = self.client.get_connection()?;
         conn.del(key)
     }
-} 
+}

@@ -1,17 +1,14 @@
 use axum::{
-    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, State},
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        State,
+    },
     response::IntoResponse,
 };
-use serde_json::json;
-use std::sync::Arc;
-use tokio::sync::broadcast;
 use futures_util::{SinkExt, StreamExt};
+use std::sync::Arc;
 
-use crate::{
-    AppState,
-    middleware::auth::AuthUser,
-    models::Message as ChatMessage,
-};
+use crate::{middleware::auth::AuthUser, models::message::Message as ChatMessage, AppState};
 
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
@@ -23,10 +20,10 @@ pub async fn ws_handler(
 
 async fn handle_socket(socket: WebSocket, state: Arc<AppState>, auth_user: AuthUser) {
     let (mut sender, mut receiver) = socket.split();
-    let mut rx = state.ws.subscribe();
+    let mut rx = state.ws_tx.subscribe();
 
     // Spawn a task to forward messages from the broadcast channel to the WebSocket
-    let mut send_task = tokio::spawn(async move {
+    let send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
             if let Err(_) = sender.send(Message::Text(msg)).await {
                 break;
@@ -39,7 +36,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>, auth_user: AuthU
         if let Message::Text(text) = msg {
             if let Ok(message) = serde_json::from_str::<ChatMessage>(&text) {
                 // Broadcast the message to all connected clients
-                if let Err(_) = state.ws.broadcast_message(&message) {
+                if let Err(_) = state.ws_tx.send(serde_json::to_string(&message).unwrap()) {
                     break;
                 }
             }
@@ -48,4 +45,4 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>, auth_user: AuthU
 
     // Clean up
     send_task.abort();
-} 
+}

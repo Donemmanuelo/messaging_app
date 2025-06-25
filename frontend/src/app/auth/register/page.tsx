@@ -15,6 +15,9 @@ export default function RegisterPage() {
     displayName: '',
   });
   const [error, setError] = useState('');
+  const [showKeyUpload, setShowKeyUpload] = useState(false);
+  const [publicKey, setPublicKey] = useState('');
+  const [userId, setUserId] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,9 +26,21 @@ export default function RegisterPage() {
     try {
       await register(formData.username, formData.email, formData.password);
       router.push('/chat');
+      setUserId(response.user.id);
+      setShowKeyUpload(true);
     } catch (err) {
       setError('Registration failed. Please try again.');
     }
+  };
+
+  const handleKeyUpload = async () => {
+    if (!userId || !publicKey) return;
+    await fetch(`/api/users/${userId}/public_key`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ public_key: publicKey }),
+    });
+    setShowKeyUpload(false);
   };
 
   return (
@@ -130,6 +145,24 @@ export default function RegisterPage() {
             </Link>
           </div>
         </form>
+        {showKeyUpload && (
+          <div className="mt-6 p-4 border rounded bg-gray-50">
+            <h2 className="text-lg font-semibold mb-2">Upload Your Public Key (E2EE)</h2>
+            <textarea
+              className="w-full border rounded p-2 mb-2"
+              rows={4}
+              placeholder="Paste your public key here"
+              value={publicKey}
+              onChange={e => setPublicKey(e.target.value)}
+            />
+            <button
+              className="bg-green-600 text-white px-4 py-2 rounded"
+              onClick={handleKeyUpload}
+            >
+              Upload Public Key
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

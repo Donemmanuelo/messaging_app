@@ -1,13 +1,15 @@
+use chrono::{Duration, Utc};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
-use chrono::{Duration, Utc};
 
 use crate::models::Claims;
 
-pub fn create_token(user_id: i32, secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
+pub fn create_token(user_id: String, secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
+    let now = Utc::now().timestamp() as usize;
     let claims = Claims {
         sub: user_id,
-        exp: (Utc::now() + Duration::days(7)).timestamp(),
+        exp: (Utc::now() + Duration::days(7)).timestamp() as usize,
+        iat: now,
     };
 
     encode(

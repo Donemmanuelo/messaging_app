@@ -1,34 +1,36 @@
+use crate::AppState;
 use axum::{
+    async_trait,
+    extract::FromRequestParts,
     extract::{Request, State},
+    http::request::Parts,
     http::{header, StatusCode},
     middleware::Next,
     response::Response,
-    extract::FromRequestParts,
-    http::{request::Parts},
-    async_trait,
 };
-use jsonwebtoken::{decode, DecodingKey, Validation, Algorithm};
+use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use uuid::Uuid;
-use tower::Layer;
-use crate::AppState;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
+use tower::Layer;
+use tower::Service;
+use uuid::Uuid;
 
-use crate::services::jwt::verify_jwt_token;
+// Comment out or remove the unresolved import of verify_token from services::jwt
+// use crate::services::jwt::verify_token;
 
 // User ID extractor for request extensions
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthUser {
-    pub id: i32,
+    pub id: Uuid,
     pub email: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: i32,
+    pub sub: String,
     pub exp: i64,
 }
 
@@ -64,7 +66,7 @@ impl<S> Layer<S> for AuthMiddleware<S> {
 
 impl<S> Service<Request> for AuthMiddleware<S>
 where
-    S: Service<Request, Response = Response> + Send + 'static,
+    S: Service<Request, Response = Response> + Send + 'static + Clone,
     S::Future: Send + 'static,
 {
     type Response = S::Response;
@@ -79,18 +81,23 @@ where
         let state = req.extensions().get::<Arc<AppState>>().cloned();
         let auth_header = req.headers().get(header::AUTHORIZATION).cloned();
 
-        let inner = self.inner.clone();
+        let mut inner = self.inner.clone();
         Box::pin(async move {
             if let (Some(state), Some(auth_header)) = (state, auth_header) {
                 if let Ok(token) = auth_header.to_str() {
                     if let Some(token) = token.strip_prefix("Bearer ") {
+                        let decoding_key = DecodingKey::from_secret(
+                            std::env::var("JWT_SECRET")
+                                .expect("JWT_SECRET must be set")
+                                .as_bytes(),
+                        );
                         if let Ok(claims) = decode::<Claims>(
                             token,
-                            &DecodingKey::from_secret(state.config.jwt_secret.as_bytes()),
+                            &decoding_key,
                             &Validation::new(Algorithm::HS256),
                         ) {
                             let auth_user = AuthUser {
-                                id: claims.claims.sub,
+                                id: Uuid::parse_str(&claims.claims.sub).unwrap_or(Uuid::nil()),
                                 email: "".to_string(), // We don't need the email in the middleware
                             };
                             req.extensions_mut().insert(auth_user);
@@ -128,13 +135,15 @@ pub async fn ws_auth_middleware(
     token: String,
     state: Arc<AppState>,
 ) -> Result<AuthUser, (StatusCode, &'static str)> {
-    if let Ok(claims) = decode::<Claims>(
-        &token,
-        &DecodingKey::from_secret(state.config.jwt_secret.as_bytes()),
-        &Validation::new(Algorithm::HS256),
-    ) {
+    let decoding_key = DecodingKey::from_secret(
+        std::env::var("JWT_SECRET")
+            .expect("JWT_SECRET must be set")
+            .as_bytes(),
+    );
+    if let Ok(claims) = decode::<Claims>(&token, &decoding_key, &Validation::new(Algorithm::HS256))
+    {
         Ok(AuthUser {
-            id: claims.claims.sub,
+            id: Uuid::parse_str(&claims.claims.sub).unwrap_or(Uuid::nil()),
             email: "".to_string(), // We don't need the email for WebSocket auth
         })
     } else {

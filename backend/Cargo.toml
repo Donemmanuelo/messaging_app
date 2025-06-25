@@ -1,18 +1,18 @@
 [package]
-name = "messaging_app"
+name = "messaging_app_backend"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 # Web framework
-axum = { version = "0.7", features = ["ws", "macros"] }
-axum-extra = { version = "0.9", features = ["multipart"] }
-tokio = { version = "1.0", features = ["full"] }
+axum = { version = "0.7", features = ["macros", "multipart", "ws"] }
+axum-extra = { version = "0.9", features = ["typed-routing", "multipart"] }
+tokio = { version = "1", features = ["full"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace", "compression-gzip"] }
 
 # Database
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono"] }
+sqlx = { version = "0.7", features = ["runtime-tokio", "postgres", "uuid", "chrono"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -23,14 +23,14 @@ jsonwebtoken = "9.2"
 bcrypt = "0.15"
 
 # Redis for pub/sub
-redis = { version = "0.23", features = ["tokio-comp"] }
+redis = { version = "0.24", features = ["tokio-comp"] }
 
 # Utilities
-uuid = { version = "1.0", features = ["v4", "serde"] }
+uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
-dotenv = "0.15"
+dotenvy = "0.15"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = "0.3"
 async-trait = "0.1"
 futures = "0.3"
 thiserror = "1.0"
@@ -52,6 +52,9 @@ sentry = "0.32.0"
 # API documentation
 utoipa = { version = "4.1.0", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "5.0.0", features = ["axum"] }
+
+# Additional dependencies
+tokio-tungstenite = "0.21"
 
 [dev-dependencies]
 tokio-test = "0.4"

@@ -3,41 +3,47 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use chrono::Utc;
-use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+
 use uuid::Uuid;
+use std::sync::Arc;
 
 use crate::{
-    auth::Claims,
     error::AppError,
     models::{
-        AddReactionRequest, MessageReaction, MessageReactionResponse,
-        RemoveReactionRequest, SearchMessagesRequest, SearchResult,
+        AddReactionRequest, RemoveReactionRequest,
+        SearchMessagesRequest, SearchResult,
     },
+    AppState,
+    middleware::AuthUser,
 };
+use axum::response::IntoResponse;
+use serde_json::Value;
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
+pub struct MessageReactionResponse {
+    pub emoji: String,
+    pub count: i64,
+    pub users: Value, // Accept raw JSON value
+}
 
 pub async fn add_reaction(
-    State(pool): State<PgPool>,
-    claims: Claims,
+    State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
     Path(message_id): Path<Uuid>,
     Json(req): Json<AddReactionRequest>,
-) -> Result<Json<MessageReactionResponse>, AppError> {
-    let mut tx = pool.begin().await?;
+) -> Result<impl IntoResponse, AppError> {
+    let mut tx = state.pool.begin().await?;
 
     // Check if user has access to the message
-    let message = sqlx::query!(
-        "SELECT chat_id FROM messages WHERE id = $1",
-        message_id
-    )
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound("Message not found".into()))?;
+    let message = sqlx::query!("SELECT chat_id FROM messages WHERE id = $1", message_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound("Message not found".into()))?;
 
     let chat_access = sqlx::query!(
-        "SELECT 1 FROM chat_participants WHERE chat_id = $1 AND user_id = $2",
+        "SELECT 1 as exists FROM chat_participants WHERE chat_id = $1 AND user_id = $2",
         message.chat_id,
-        claims.user_id
+        auth_user.id
     )
     .fetch_optional(&mut *tx)
     .await?;
@@ -52,7 +58,7 @@ pub async fn add_reaction(
          VALUES ($1, $2, $3)
          ON CONFLICT (message_id, user_id, emoji) DO NOTHING",
         message_id,
-        claims.user_id,
+        auth_user.id,
         req.emoji
     )
     .execute(&mut *tx)
@@ -69,8 +75,8 @@ pub async fn add_reaction(
             WHERE mr.message_id = $1 AND mr.emoji = $2
         )
         SELECT 
-            $2 as emoji,
-            COUNT(*) as count,
+            $2::text as "emoji!",
+            COUNT(*) as "count!",
             COALESCE(json_agg(json_build_object(
                 'id', u.id,
                 'username', u.username,
@@ -90,44 +96,41 @@ pub async fn add_reaction(
 }
 
 pub async fn remove_reaction(
-    State(pool): State<PgPool>,
-    claims: Claims,
+    State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
     Path(message_id): Path<Uuid>,
     Json(req): Json<RemoveReactionRequest>,
-) -> Result<StatusCode, AppError> {
+) -> Result<impl IntoResponse, AppError> {
     sqlx::query!(
         "DELETE FROM message_reactions
          WHERE message_id = $1 AND user_id = $2 AND emoji = $3",
         message_id,
-        claims.user_id,
+        auth_user.id,
         req.emoji
     )
-    .execute(&pool)
+    .execute(&state.pool)
     .await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn get_reactions(
-    State(pool): State<PgPool>,
-    claims: Claims,
+    State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
     Path(message_id): Path<Uuid>,
-) -> Result<Json<Vec<MessageReactionResponse>>, AppError> {
+) -> Result<impl IntoResponse, AppError> {
     // Check if user has access to the message
-    let message = sqlx::query!(
-        "SELECT chat_id FROM messages WHERE id = $1",
-        message_id
-    )
-    .fetch_optional(&pool)
-    .await?
-    .ok_or(AppError::NotFound("Message not found".into()))?;
+    let message = sqlx::query!("SELECT chat_id FROM messages WHERE id = $1", message_id)
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or(AppError::NotFound("Message not found".into()))?;
 
     let chat_access = sqlx::query!(
-        "SELECT 1 FROM chat_participants WHERE chat_id = $1 AND user_id = $2",
+        "SELECT 1 as exists FROM chat_participants WHERE chat_id = $1 AND user_id = $2",
         message.chat_id,
-        claims.user_id
+        auth_user.id
     )
-    .fetch_optional(&pool)
+    .fetch_optional(&state.pool)
     .await?;
 
     if chat_access.is_none() {
@@ -147,7 +150,7 @@ pub async fn get_reactions(
         )
         SELECT 
             emoji,
-            COUNT(*) as count,
+            COUNT(*) as "count!",
             COALESCE(json_agg(json_build_object(
                 'id', u.id,
                 'username', u.username,
@@ -159,18 +162,18 @@ pub async fn get_reactions(
         "#,
         message_id
     )
-    .fetch_all(&pool)
+    .fetch_all(&state.pool)
     .await?;
 
     Ok(Json(reactions))
 }
 
 pub async fn search_messages(
-    State(pool): State<PgPool>,
-    claims: Claims,
+    State(state): State<Arc<AppState>>,
+    auth_user: AuthUser,
     Query(req): Query<SearchMessagesRequest>,
-) -> Result<Json<Vec<SearchResult>>, AppError> {
-    let mut query = String::from(
+) -> Result<impl IntoResponse, AppError> {
+    let  query = String::from(
         r#"
         WITH message_reactions AS (
             SELECT 
@@ -226,74 +229,21 @@ pub async fn search_messages(
         LEFT JOIN message_reactions mr ON mr.message_id = m.id
         LEFT JOIN message_reads mr2 ON mr2.message_id = m.id
         WHERE m.deleted_at IS NULL
-        "#,
-    );
-
-    let mut conditions = Vec::new();
-    let mut params: Vec<Box<dyn sqlx::types::Type>> = Vec::new();
-    let mut param_count = 1;
-
-    // Add search condition
-    conditions.push(format!("m.search_vector @@ to_tsquery('english', ${})", param_count));
-    params.push(Box::new(req.query));
-    param_count += 1;
-
-    // Add chat filter if specified
+        
+    "#);
+    // Add any additional WHERE clauses and parameters as needed
+    let mut query_builder = sqlx::query_as::<_, SearchResult>(&query);
+    query_builder = query_builder.bind(&req.query);
     if let Some(chat_id) = req.chat_id {
-        conditions.push(format!("m.chat_id = ${}", param_count));
-        params.push(Box::new(chat_id));
-        param_count += 1;
+        query_builder = query_builder.bind(chat_id);
     }
-
-    // Add date range if specified
-    if let Some(from_date) = req.from_date {
-        conditions.push(format!("m.created_at >= ${}", param_count));
-        params.push(Box::new(from_date));
-        param_count += 1;
-    }
-    if let Some(to_date) = req.to_date {
-        conditions.push(format!("m.created_at <= ${}", param_count));
-        params.push(Box::new(to_date));
-        param_count += 1;
-    }
-
-    // Add access control
-    conditions.push(format!(
-        "EXISTS (SELECT 1 FROM chat_participants cp WHERE cp.chat_id = m.chat_id AND cp.user_id = ${})",
-        param_count
-    ));
-    params.push(Box::new(claims.user_id));
-    param_count += 1;
-
-    // Add conditions to query
-    if !conditions.is_empty() {
-        query.push_str(" AND ");
-        query.push_str(&conditions.join(" AND "));
-    }
-
-    // Add grouping and ordering
-    query.push_str(
-        r#"
-        GROUP BY m.id, s.id, c.id, mr2.users
-        ORDER BY m.created_at DESC
-        "#,
-    );
-
-    // Add pagination
+    query_builder = query_builder.bind(&auth_user.id);
     if let Some(limit) = req.limit {
-        query.push_str(&format!(" LIMIT ${}", param_count));
-        params.push(Box::new(limit));
-        param_count += 1;
+        query_builder = query_builder.bind(limit);
     }
     if let Some(offset) = req.offset {
-        query.push_str(&format!(" OFFSET ${}", param_count));
-        params.push(Box::new(offset));
+        query_builder = query_builder.bind(offset);
     }
-
-    let results = sqlx::query_as::<_, SearchResult>(&query)
-        .bind_all(params)
-        .fetch_all(&pool)
-        .await?;
-
+    let results = query_builder.fetch_all(&state.pool).await?;
     Ok(Json(results))
-} 
+}

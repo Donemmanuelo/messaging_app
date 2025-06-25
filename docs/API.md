@@ -405,4 +405,47 @@ Official SDKs are available for:
 4. **WebSocket**
    - Implement heartbeat mechanism
    - Handle reconnection gracefully
-   - Process messages in order 
+   - Process messages in order
+
+# API Reference
+
+## Interactive API Docs
+- Visit [http://localhost:8080/api/docs](http://localhost:8080/api/docs) for Swagger UI (OpenAPI) with live testing.
+
+## Main Endpoints
+
+### Auth
+- `POST /auth/register` — Register a new user
+- `POST /auth/login` — Login and get JWT
+
+### Users
+- `GET /users` — List all users
+- `PATCH /users/:user_id` — Update user profile
+- `POST /users/:user_id/avatar` — Upload user avatar
+
+### Groups
+- `GET /groups` — List all groups
+- `POST /groups` — Create a group
+- `POST /groups/:group_id/avatar` — Upload group avatar
+
+### Messages
+- `GET /messages/:chat_id` — Fetch messages for a group
+- `POST /messages` — Send a message
+
+### Message Reactions
+- `POST /message_reactions` — Add a reaction
+- `DELETE /message_reactions` — Remove a reaction
+- `GET /message_reactions/:message_id` — Get reactions for a message
+
+### Message Reads
+- `POST /message_reads` — Mark a message as read
+- `GET /message_reads/:message_id` — Get read receipts for a message
+
+### Media
+- `POST /media/upload` — Upload a file (image, video, doc)
+
+### WebSocket
+- `ws://localhost:8080/ws` — Real-time messaging
+
+---
+For full request/response schemas and try-it-out, use the Swagger UI at `/api/docs`. 

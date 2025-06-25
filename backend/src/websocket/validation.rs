@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use crate::error::AppError;
 use crate::models::message::Message;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 pub const MAX_MESSAGE_LENGTH: usize = 4096; // 4KB
 pub const MAX_EMOJI_LENGTH: usize = 8; // Maximum length for emoji reactions
@@ -31,6 +31,15 @@ pub enum WebSocketMessage {
         group_id: Uuid,
         user_id: Uuid,
         message_id: Uuid,
+    },
+    MessageReaction {
+        message_id: Uuid,
+        user_id: Uuid,
+        emoji: String,
+    },
+    UserStatus {
+        user_id: Uuid,
+        status: String,
     },
 }
 
@@ -78,10 +87,12 @@ impl WebSocketMessage {
     pub fn validate(&self) -> Result<(), AppError> {
         match self {
             WebSocketMessage::DirectMessage(message) => {
-                if message.content.is_empty() {
-                    return Err(AppError::BadRequest("Message content cannot be empty".into()));
+                if message.content.as_deref().unwrap_or("").is_empty() {
+                    return Err(AppError::BadRequest(
+                        "Message content cannot be empty".into(),
+                    ));
                 }
-                if message.content.len() > MAX_MESSAGE_LENGTH {
+                if message.content.as_deref().unwrap_or("").len() > MAX_MESSAGE_LENGTH {
                     return Err(AppError::BadRequest(format!(
                         "Message content exceeds maximum length of {} characters",
                         MAX_MESSAGE_LENGTH
@@ -97,10 +108,12 @@ impl WebSocketMessage {
                 }
             }
             WebSocketMessage::GroupMessage { message, .. } => {
-                if message.content.is_empty() {
-                    return Err(AppError::BadRequest("Message content cannot be empty".into()));
+                if message.content.as_deref().unwrap_or("").is_empty() {
+                    return Err(AppError::BadRequest(
+                        "Message content cannot be empty".into(),
+                    ));
                 }
-                if message.content.len() > MAX_MESSAGE_LENGTH {
+                if message.content.as_deref().unwrap_or("").len() > MAX_MESSAGE_LENGTH {
                     return Err(AppError::BadRequest(format!(
                         "Message content exceeds maximum length of {} characters",
                         MAX_MESSAGE_LENGTH
@@ -138,4 +151,4 @@ impl WebSocketMessage {
         }
         Ok(())
     }
-} 
+}

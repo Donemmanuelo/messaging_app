@@ -1,49 +1,36 @@
 version: '3.8'
 
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+  backend:
+    build: .
     ports:
-      - "3000:3000"
-    environment:
-      - DATABASE_URL=postgres://postgres:postgres@db:5432/messaging_app
-      - REDIS_URL=redis://redis:6379
-      - FRONTEND_URL=http://localhost:3000
-      - APP_ENV=development
-      - RUST_LOG=debug
+      - "8080:8080"
+    env_file:
+      - .env
     depends_on:
       - db
       - redis
-    networks:
-      - app-network
 
   db:
-    image: postgres:13-alpine
+    image: postgres:15
+    restart: always
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=messaging_app
+      POSTGRES_USER: messaging_user
+      POSTGRES_PASSWORD: messaging_pass
+      POSTGRES_DB: messaging_db
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - app-network
+      - pgdata:/var/lib/postgresql/data
 
   redis:
-    image: redis:6-alpine
+    image: redis:7
+    restart: always
     ports:
       - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - app-network
 
 volumes:
-  postgres_data:
-  redis_data:
+  pgdata:
 
 networks:
   app-network:

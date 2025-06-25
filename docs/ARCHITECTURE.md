@@ -1,247 +1,205 @@
-# System Architecture
+# Messaging App: Full-Stack Architecture & Documentation
 
 ## Overview
 
-The messaging application is built using a microservices architecture with the following key components:
+This document provides a comprehensive overview of the messaging application's architecture, backend and frontend design, security, DevOps, and extension points. It is intended for developers, DevOps engineers, and contributors.
 
-### Core Components
+---
 
-1. **Backend Service (Rust)**
-   - REST API server
-   - WebSocket server
-   - Message processing
-   - Authentication
-   - Rate limiting
+## Table of Contents
+1. [System Architecture](#system-architecture)
+2. [Backend](#backend)
+3. [Frontend](#frontend)
+4. [DevOps & Deployment](#devops--deployment)
+5. [Security](#security)
+6. [Testing](#testing)
+7. [Extension Points](#extension-points)
+8. [Environment Variables](#environment-variables)
+9. [References](#references)
 
-2. **Frontend Service (React)**
-   - User interface
-   - Real-time updates
-   - Media handling
-   - State management
+---
 
-3. **Database (PostgreSQL)**
-   - User data
-   - Messages
-   - Groups
-   - Media metadata
+## 1. System Architecture
 
-4. **Cache Layer (Redis)**
-   - Session management
-   - Rate limiting
-   - Real-time presence
-   - Message queue
+- **Backend:** Rust (Axum), PostgreSQL, Redis, JWT, WebSocket, REST APIs, Docker
+- **Frontend:** Next.js (React), HTML/CSS/JS, WebSocket, REST APIs
+- **Real-Time:** WebSocket for chat, Redis for pub/sub
+- **Media:** File uploads (images, videos, etc.)
+- **Security:** JWT, CORS, rate limiting, E2EE-ready
+- **Deployment:** Docker Compose, Nginx, environment variables
 
-5. **Media Storage (S3)**
-   - File storage
-   - CDN integration
-   - Backup storage
+### High-Level Diagram
 
-## System Design
-
-### High-Level Architecture
-
-```mermaid
-graph TD
-    Client[Client] --> |HTTP/WS| API[API Gateway]
-    API --> |Auth| Auth[Auth Service]
-    API --> |Messages| Msg[Message Service]
-    API --> |Media| Media[Media Service]
-    API --> |Groups| Group[Group Service]
-    
-    Auth --> |Session| Redis[(Redis)]
-    Msg --> |Cache| Redis
-    Group --> |Cache| Redis
-    
-    Auth --> |User Data| DB[(PostgreSQL)]
-    Msg --> |Messages| DB
-    Media --> |Metadata| DB
-    Group --> |Groups| DB
-    
-    Media --> |Files| S3[(S3 Storage)]
+```
+[User] <-> [Next.js Frontend] <-> [Axum Backend] <-> [PostgreSQL]
+                                      |                |
+                                      |                |
+                                      +--> [Redis] <---+
+                                      |
+                                      +--> [Media Storage]
 ```
 
-### Component Interactions
+---
 
-1. **Authentication Flow**
-   ```mermaid
-   sequenceDiagram
-       Client->>+API: Login Request
-       API->>+Auth: Validate Credentials
-       Auth->>+DB: Check User
-       DB-->>-Auth: User Data
-       Auth->>+Redis: Store Session
-       Redis-->>-Auth: Session ID
-       Auth-->>-API: JWT Token
-       API-->>-Client: Auth Response
-   ```
+## 2. Backend
 
-2. **Message Flow**
-   ```mermaid
-   sequenceDiagram
-       Client->>+API: Send Message
-       API->>+Msg: Process Message
-       Msg->>+DB: Store Message
-       DB-->>-Msg: Message ID
-       Msg->>+Redis: Cache Message
-       Redis-->>-Msg: Cache Status
-       Msg->>+WS: Broadcast
-       WS-->>-Client: Real-time Update
-   ```
+### 2.1. Tech Stack
+- **Language:** Rust
+- **Framework:** Axum
+- **Database:** PostgreSQL (diesel/sqlx/sea-orm)
+- **Cache/Queue:** Redis
+- **Auth:** JWT (with strong password policy)
+- **Real-Time:** WebSocket
+- **Media:** File upload endpoints
+- **Containerization:** Docker
 
-## Data Models
+### 2.2. Main Features
+- User registration/login (JWT)
+- Password policy: min 12 chars, upper/lower/number/special
+- Group chat (admin roles, add/remove users)
+- One-to-one and group messaging
+- Message status (sent, delivered, read)
+- Media upload/download
+- E2EE-ready: public/private key fields, key exchange endpoints
+- OpenAPI documentation
 
-### User Model
-```rust
-struct User {
-    id: Uuid,
-    username: String,
-    email: String,
-    password_hash: String,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-    last_login: Option<DateTime<Utc>>,
-    status: UserStatus,
-    settings: UserSettings,
-}
+### 2.3. Directory Structure
+- `src/models/` - DB models (User, Message, Group, etc.)
+- `src/routes/` - REST API endpoints
+- `src/websocket/` - WebSocket logic
+- `src/services/` - Business logic
+- `src/db/` - DB connection, migrations
+- `src/middleware/` - Auth, CORS, rate limiting
+
+### 2.4. Key Endpoints
+- `/api/auth/register` - Register user
+- `/api/auth/login` - Login
+- `/api/users/public_key` - Upload/fetch public key
+- `/api/chats/` - List/create chats
+- `/api/chats/{id}/messages` - Send/fetch messages
+- `/api/groups/` - Group chat management
+- `/api/media/upload` - Media upload
+- `/ws/` - WebSocket endpoint
+
+### 2.5. E2EE Support
+- User model: `public_key`, `private_key_encrypted`
+- Endpoints for key upload/fetch
+- (Client-side encryption/decryption recommended)
+
+---
+
+## 3. Frontend
+
+### 3.1. Tech Stack
+- **Framework:** Next.js (React)
+- **State:** React Context/Redux/Zustand
+- **WebSocket:** Real-time chat
+- **Media:** File upload UI
+- **Testing:** Jest, React Testing Library
+
+### 3.2. Main Features
+- Login/registration UI
+- Chat list, chat window
+- Group chat creation, admin controls
+- Real-time chat (WebSocket)
+- Media upload
+- Message status indicators
+- E2EE UI: upload/fetch public key
+
+### 3.3. Directory Structure
+- `src/app/` - App routes
+- `src/components/` - UI components
+- `src/hooks/` - Custom hooks
+- `src/store/` - State management
+- `src/types/` - TypeScript types
+- `src/socket/` - WebSocket logic
+
+### 3.4. E2EE UI
+- Upload public key after registration
+- Fetch public key after login
+- (Encrypt/decrypt messages client-side)
+
+---
+
+## 4. DevOps & Deployment
+
+### 4.1. Docker
+- `docker-compose.yml` for multi-service orchestration
+- Backend, frontend, PostgreSQL, Redis, Nginx
+
+### 4.2. Nginx
+- Reverse proxy for frontend/backend
+- SSL/TLS termination (recommended for production)
+
+### 4.3. Environment Variables
+- `.env.example` files for backend/frontend
+- Document all required variables
+
+### 4.4. CI/CD (Recommended)
+- Lint, test, build, deploy
+- GitHub Actions/GitLab CI
+
+---
+
+## 5. Security
+
+- JWT authentication
+- Strong password policy
+- CORS configuration
+- Security headers (Nginx, backend)
+- Rate limiting
+- E2EE-ready (public/private key fields, endpoints)
+- Media upload validation
+
+---
+
+## 6. Testing
+
+### 6.1. Backend
+- Integration tests: group chat, E2EE endpoints, WebSocket
+- Unit tests: services, models
+
+### 6.2. Frontend
+- Jest, React Testing Library
+- E2EE UI, group chat, media upload, WebSocket reconnect
+
+---
+
+## 7. Extension Points
+
+- **E2EE:** Implement client-side encryption/decryption
+- **Push Notifications:** Integrate with FCM/APNs
+- **Scalability:** Use Kubernetes, horizontal scaling
+- **Monitoring:** Grafana, Prometheus
+- **Mobile App:** React Native/Flutter
+
+---
+
+## 8. Environment Variables
+
+### Backend (`.env.example`)
+```
+DATABASE_URL=postgres://user:password@db:5432/messaging_app
+REDIS_URL=redis://redis:6379
+JWT_SECRET=your_jwt_secret
+MEDIA_UPLOAD_PATH=./media
+CORS_ORIGIN=http://localhost:3000
 ```
 
-### Message Model
-```rust
-struct Message {
-    id: Uuid,
-    sender_id: Uuid,
-    receiver_id: Uuid,
-    content: String,
-    type_: MessageType,
-    status: MessageStatus,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-    metadata: MessageMetadata,
-}
+### Frontend (`.env.example`)
+```
+NEXT_PUBLIC_API_URL=http://localhost:8000/api
+NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws
 ```
 
-### Group Model
-```rust
-struct Group {
-    id: Uuid,
-    name: String,
-    description: Option<String>,
-    owner_id: Uuid,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-    settings: GroupSettings,
-    members: Vec<GroupMember>,
-}
-```
+---
 
-## Security Architecture
-
-### Authentication
-- JWT-based authentication
-- Refresh token rotation
-- Rate limiting per endpoint
-- IP-based blocking
-- Session management
-
-### Authorization
-- Role-based access control
-- Resource ownership validation
-- Group permission system
-- API key management
-
-### Data Protection
-- End-to-end encryption for messages
-- Media encryption at rest
-- Secure password hashing
-- Input validation
-- XSS protection
-- CSRF protection
-
-## Scalability Considerations
-
-### Horizontal Scaling
-- Stateless API design
-- Database sharding strategy
-- Redis cluster configuration
-- Load balancer setup
-- CDN integration
-
-### Performance Optimization
-- Database indexing strategy
-- Query optimization
-- Caching strategy
-- Connection pooling
-- Background job processing
-
-### Monitoring and Alerts
-- Performance metrics
-- Error tracking
-- Resource utilization
-- Business metrics
-- Security events
-
-## Deployment Architecture
-
-### Production Environment
-```mermaid
-graph TD
-    LB[Load Balancer] --> |HTTPS| API1[API Server 1]
-    LB --> |HTTPS| API2[API Server 2]
-    API1 --> |Read| DB1[(DB Primary)]
-    API2 --> |Read| DB1
-    API1 --> |Write| DB1
-    API2 --> |Write| DB1
-    DB1 --> |Replicate| DB2[(DB Replica)]
-    API1 --> |Cache| RC1[(Redis Cluster)]
-    API2 --> |Cache| RC1
-```
-
-### Development Environment
-- Local development setup
-- Docker Compose configuration
-- CI/CD pipeline
-- Testing environment
-- Staging environment
-
-## Disaster Recovery
-
-### Backup Strategy
-- Database backups
-- Media backups
-- Configuration backups
-- Log retention
-
-### Recovery Procedures
-- Database restore
-- Service recovery
-- Data migration
-- Rollback procedures
-
-## Compliance
-
-### Data Privacy
-- GDPR compliance
-- Data retention policies
-- User data export
-- Data deletion
-
-### Security Standards
-- OWASP guidelines
-- Security best practices
-- Regular audits
-- Penetration testing
-
-## Future Considerations
-
-### Planned Improvements
-- Message encryption
-- Voice/video calls
-- File sharing
-- Group features
-- Analytics
-
-### Technical Debt
-- Code refactoring
-- Performance optimization
-- Documentation updates
-- Test coverage 
+## 9. References
+- [Axum](https://github.com/tokio-rs/axum)
+- [Next.js](https://nextjs.org/)
+- [PostgreSQL](https://www.postgresql.org/)
+- [Redis](https://redis.io/)
+- [Docker](https://www.docker.com/)
+- [Nginx](https://nginx.org/)
+- [Jest](https://jestjs.io/)
+- [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/) 

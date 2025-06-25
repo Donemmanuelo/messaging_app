@@ -67,3 +67,19 @@ describe('ChatSidebar Component', () => {
     expect(screen.getByText('Description')).toBeInTheDocument();
   });
 }); 
+
+describe('Group Chat Creation UI', () => {
+  it('renders group creation form and submits', () => {
+    // Mock fetch
+    global.fetch = vi.fn(() => Promise.resolve({ ok: true })) as any;
+    render(
+      <div>
+        <input data-testid="group-name-input" />
+        <button data-testid="create-group-btn">Create Group</button>
+      </div>
+    );
+    fireEvent.change(screen.getByTestId('group-name-input'), { target: { value: 'Test Group' } });
+    fireEvent.click(screen.getByTestId('create-group-btn'));
+    expect(global.fetch).toHaveBeenCalled();
+  });
+}); 

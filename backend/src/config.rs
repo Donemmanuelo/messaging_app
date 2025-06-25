@@ -1,7 +1,8 @@
+use crate::config::Config as ConfigSource;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::env;
-use config::{Config as ConfigSource, ConfigError, File};
+use std::fs::File;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct AppConfig {
@@ -17,7 +18,7 @@ pub struct AppConfig {
 
 impl AppConfig {
     pub fn from_env() -> Result<Self> {
-        dotenv::dotenv().ok();
+        dotenvy::dotenv().ok();
 
         Ok(AppConfig {
             database_url: env::var("DATABASE_URL")
@@ -26,8 +27,7 @@ impl AppConfig {
                 .unwrap_or_else(|_| "redis://localhost:6379".to_string()),
             server_address: env::var("SERVER_ADDRESS")
                 .unwrap_or_else(|_| "0.0.0.0:8000".to_string()),
-            jwt_secret: env::var("JWT_SECRET")
-                .unwrap_or_else(|_| "your-secret-key".to_string()),
+            jwt_secret: env::var("JWT_SECRET").unwrap_or_else(|_| "your-secret-key".to_string()),
             jwt_expiration: env::var("JWT_EXPIRATION")
                 .unwrap_or_else(|_| "86400".to_string())
                 .parse()?,
@@ -68,11 +68,15 @@ impl Config {
         Ok(Self {
             database_url: env::var("DATABASE_URL")?,
             redis_url: env::var("REDIS_URL")?,
-            frontend_url: env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:3000".to_string()),
+            frontend_url: env::var("FRONTEND_URL")
+                .unwrap_or_else(|_| "http://localhost:3000".to_string()),
             port: env::var("PORT")
                 .unwrap_or_else(|_| "3000".to_string())
                 .parse()?,
-            environment: match env::var("APP_ENV").unwrap_or_else(|_| "development".to_string()).as_str() {
+            environment: match env::var("APP_ENV")
+                .unwrap_or_else(|_| "development".to_string())
+                .as_str()
+            {
                 "production" => Environment::Production,
                 "testing" => Environment::Testing,
                 _ => Environment::Development,

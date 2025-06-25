@@ -1,15 +1,28 @@
-# Messaging App Backend
-
-A production-ready backend for a real-time messaging application built with Rust, Axum, and PostgreSQL.
+# Messaging App Backend (Rust + Axum)
 
 ## Features
+- JWT Auth
+- REST APIs (users, messages, groups)
+- WebSocket real-time messaging
+- PostgreSQL (sqlx)
+- Redis (sessions, status)
+- File upload
 
-- Real-time messaging with WebSocket support
-- Group chat functionality
-- Media upload and management
-- Rate limiting and security features
-- Health monitoring and logging
-- Production-ready configuration
+## Setup
+```sh
+cp .env .env.local
+# Edit .env.local as needed
+```
+
+## Run (Local)
+```sh
+cargo run
+```
+
+## Run (Docker)
+```sh
+docker-compose up --build
+```
 
 ## Prerequisites
 

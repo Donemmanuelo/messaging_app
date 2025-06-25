@@ -1,6 +1,5 @@
 use axum::extract::ws::Message;
 use serde_json::json;
-use std::sync::Arc;
 use tokio::sync::broadcast;
 
 pub struct WsService {
@@ -18,22 +17,28 @@ impl WsService {
     }
 
     pub fn broadcast(&self, message: &str) -> Result<(), broadcast::error::SendError<String>> {
-        self.tx.send(message.to_string())
+        self.tx.send(message.to_string()).map(|_| ())
     }
 
-    pub fn broadcast_message(&self, message: &crate::models::Message) -> Result<(), broadcast::error::SendError<String>> {
-        let message = json!({
+    pub fn broadcast_message(
+        &self,
+        message: &crate::models::message::Message,
+    ) -> Result<(), broadcast::error::SendError<String>> {
+        let message = serde_json::to_string(&json!({
             "type": "message",
             "data": message
-        });
-        self.broadcast(&message.to_string())
+        })).unwrap();
+        self.broadcast(&message)
     }
 
-    pub fn broadcast_chat(&self, chat: &crate::models::Chat) -> Result<(), broadcast::error::SendError<String>> {
-        let message = json!({
+    pub fn broadcast_chat(
+        &self,
+        chat: &crate::models::Chat,
+    ) -> Result<(), broadcast::error::SendError<String>> {
+        let message = serde_json::to_string(&json!({
             "type": "chat",
             "data": chat
-        });
-        self.broadcast(&message.to_string())
+        })).unwrap();
+        self.broadcast(&message)
     }
-} 
+}

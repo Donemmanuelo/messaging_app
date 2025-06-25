@@ -2,26 +2,27 @@
 
 ## Getting Started
 
-### Account Management
+1. **Register:** Click 'Register' and create an account with your email and password.
+2. **Login:** Enter your credentials to log in.
 
-1. **Registration**
-   - Visit the registration page
-   - Enter your email and password
-   - Verify your email address
-   - Complete your profile
+## Main Features
+- **Chat List:** See all your available group chats.
+- **Create Group:** Use the sidebar to create a new group. Optionally upload a group avatar.
+- **Send Messages:** Select a group, type your message, and hit 'Send'.
+- **File Upload:** Use the file upload button to share images, videos, or documents in chat.
+- **Reactions:** Click on 👍, ❤️, 😂 under any message to react. Click again to remove your reaction.
+- **Read Receipts:** See which users have read each message (avatars/usernames under the message).
+- **Profile Editing:** Go to the Profile page to update your username, email, or avatar.
 
-2. **Login**
-   - Enter your credentials
-   - Enable two-factor authentication (recommended)
-   - Remember device option
-   - Password reset process
+## Real-Time Messaging
+- All messages and reactions update instantly via WebSocket.
+- Online users are shown in the sidebar.
 
-3. **Profile Settings**
-   - Update profile picture
-   - Change display name
-   - Set status message
-   - Privacy settings
-   - Notification preferences
+## Troubleshooting
+- **Can't connect?** Make sure the backend and frontend are running (see README).
+- **File upload fails?** Check file size/type and backend logs.
+- **WebSocket disconnects?** Try refreshing the page or check your network.
+- **Need help?** See the API docs at `/api/docs` or contact your admin.
 
 ## Messaging Features
 
@@ -156,48 +157,6 @@
    - Email notifications
    - Sound alerts
    - Do not disturb
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Connection Problems**
-   - Check internet connection
-   - Clear cache and cookies
-   - Update application
-   - Contact support
-
-2. **Message Issues**
-   - Messages not sending
-   - Media upload failures
-   - Message delivery status
-   - Message sync problems
-
-3. **Account Issues**
-   - Login problems
-   - Password reset
-   - Account recovery
-   - Security concerns
-
-### Support
-
-1. **Help Center**
-   - FAQ section
-   - Video tutorials
-   - User guides
-   - Community forums
-
-2. **Contact Support**
-   - Email support
-   - Live chat
-   - Phone support
-   - Social media
-
-3. **Feedback**
-   - Feature requests
-   - Bug reports
-   - User surveys
-   - Beta testing
 
 ## Best Practices
 

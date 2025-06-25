@@ -13,14 +13,26 @@ export default function LoginPage() {
     password: '',
   });
   const [error, setError] = useState('');
+  const [publicKey, setPublicKey] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     try {
-      await login(formData.email, formData.password);
+      const response = await login(formData.email, formData.password);
       router.push('/chat');
+
+      // On successful login, fetch the user's public key
+      if (response.user && response.user.id) {
+        const res = await fetch(`/api/users/${response.user.id}/public_key`);
+        if (res.ok) {
+          const key = await res.json();
+          setPublicKey(key);
+          // Optionally, store in localStorage or context for E2EE use
+          localStorage.setItem('public_key', key);
+        }
+      }
     } catch (err) {
       setError('Invalid email or password');
     }

@@ -1,3 +1,11 @@
+use crate::{
+    auth::AuthUser,
+    auth::Claims,
+    error::AppError,
+    models::ChatMessage,
+    models::ForwardMessageRequest,
+    models::message::Message,
+};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -5,29 +13,22 @@ use axum::{
     Json,
 };
 use chrono::Utc;
-use serde::{Deserialize, Serialize};
+use serde:: Serialize;
 use sqlx::PgPool;
 use uuid::Uuid;
-use crate::{
-    models::{ForwardMessageRequest, MessageActionResponse},
-    auth::Claims,
-    error::AppError,
-    models::{Message, MessageRead},
-    auth::AuthUser,
-    models::{ChatMessage},
-};
 
-#[derive(Debug, Deserialize)]
-pub struct ForwardMessageRequest {
-    message_ids: Vec<Uuid>,
-    target_chat_id: Uuid,
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct MessageReadResponse {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub read_at: chrono::DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize)]
-pub struct MessageReadResponse {
-    id: Uuid,
-    user_id: Uuid,
-    read_at: chrono::DateTime<Utc>,
+pub struct ReadReceiptResponse {
+    pub id: Uuid,
+    pub username: String,
+    pub read_at: chrono::DateTime<Utc>,
 }
 
 pub async fn delete_message(
@@ -35,21 +36,21 @@ pub async fn delete_message(
     claims: Claims,
     Path(message_id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
-    let message = sqlx::query_as!(
-        Message,
-        "SELECT * FROM messages WHERE id = $1",
-        message_id
-    )
-    .fetch_optional(&pool)
-    .await?
-    .ok_or(AppError::NotFound("Message not found".into()))?;
+    let message = sqlx::query_as!(Message, "SELECT * FROM messages WHERE id = $1", message_id)
+        .fetch_optional(&pool)
+        .await?
+        .ok_or(AppError::NotFound("Message not found".into()))?;
 
-    if message.sender_id != claims.user_id {
-        return Err(AppError::Forbidden("Cannot delete another user's message".into()));
+    let user_id = Uuid::parse_str(&claims.sub)?;
+
+    if message.sender_id != user_id {
+        return Err(AppError::Forbidden(
+            "Cannot delete another user's message".into(),
+        ));
     }
 
     sqlx::query!(
-        "UPDATE messages SET deleted_at = $1 WHERE id = $2",
+        "UPDATE messages SET updated_at = $1 WHERE id = $2",
         Utc::now(),
         message_id
     )
@@ -66,25 +67,25 @@ pub async fn forward_messages(
 ) -> Result<StatusCode, AppError> {
     let mut tx = pool.begin().await?;
 
-    for message_id in req.message_ids {
+    let user_id = Uuid::parse_str(&claims.sub)?;
+
+    for chat_id in req.chat_ids.iter() {
         let message = sqlx::query_as!(
             Message,
-            "SELECT * FROM messages WHERE id = $1 AND deleted_at IS NULL",
-            message_id
+            "SELECT * FROM messages WHERE id = $1",
+            req.message_id
         )
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(AppError::NotFound("Message not found".into()))?;
 
         sqlx::query!(
-            "INSERT INTO messages (chat_id, sender_id, content, media_url, media_type, reply_to_id)
-             VALUES ($1, $2, $3, $4, $5, $6)",
-            req.target_chat_id,
-            claims.user_id,
+            "INSERT INTO messages (chat_id, sender_id, content, media_url)
+             VALUES ($1, $2, $3, $4)",
+            chat_id,
+            user_id,
             message.content,
-            message.media_url,
-            message.media_type,
-            message.reply_to_id
+            message.media_url
         )
         .execute(&mut *tx)
         .await?;
@@ -99,12 +100,14 @@ pub async fn mark_message_as_read(
     claims: Claims,
     Path(message_id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)?;
+
     sqlx::query!(
-        "INSERT INTO message_reads (message_id, user_id)
-         VALUES ($1, $2)
-         ON CONFLICT (message_id, user_id) DO NOTHING",
+        "INSERT INTO message_reads (message_id, user_id, read_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (message_id, user_id) DO UPDATE SET read_at = NOW()",
         message_id,
-        claims.user_id
+        user_id
     )
     .execute(&pool)
     .await?;
@@ -117,21 +120,16 @@ pub async fn get_message_reads(
     claims: Claims,
     Path(message_id): Path<Uuid>,
 ) -> Result<Json<Vec<MessageReadResponse>>, AppError> {
-    let message = sqlx::query_as!(
-        Message,
-        "SELECT * FROM messages WHERE id = $1",
-        message_id
-    )
-    .fetch_optional(&pool)
-    .await?
-    .ok_or(AppError::NotFound("Message not found".into()))?;
+    let message = sqlx::query_as!(Message, "SELECT * FROM messages WHERE id = $1", message_id)
+        .fetch_optional(&pool)
+        .await?
+        .ok_or(AppError::NotFound("Message not found".into()))?;
 
     // Check if user has access to the chat
     let chat_access = sqlx::query!(
-        "SELECT 1 FROM chat_participants
-         WHERE chat_id = $1 AND user_id = $2",
+        "SELECT 1 as exists FROM chat_participants\n         WHERE chat_id = $1 AND user_id = $2",
         message.chat_id,
-        claims.user_id
+        Uuid::parse_str(&claims.sub)?
     )
     .fetch_optional(&pool)
     .await?;
@@ -157,7 +155,7 @@ pub async fn get_message_reads(
 pub async fn forward_message(
     State(pool): State<PgPool>,
     auth_user: AuthUser,
-    Path((chat_id, message_id)): Path<(i32, i32)>,
+    Path((chat_id, message_id)): Path<(Uuid, Uuid)>,
     Json(req): Json<ForwardMessageRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     // Check if user is a participant in source chat
@@ -170,76 +168,64 @@ pub async fn forward_message(
     .await?
     .exists;
 
-    if !is_participant {
-        return Err(AppError::Forbidden("Not a participant in source chat".into()));
+    if !is_participant.unwrap_or(false) {
+        return Err(AppError::Forbidden(
+            "Not a participant in source chat".into(),
+        ));
     }
 
-    // Check if user is a participant in target chat
+    // Check if user is a participant in target chat (first chat_id in req.chat_ids)
+    let target_chat_id = req
+        .chat_ids
+        .get(0)
+        .ok_or(AppError::BadRequest("No target chat_id provided".into()))?;
     let is_participant = sqlx::query!(
         "SELECT EXISTS(SELECT 1 FROM chat_participants WHERE chat_id = $1 AND user_id = $2)",
-        req.target_chat_id,
+        target_chat_id,
         auth_user.id
     )
     .fetch_one(&pool)
     .await?
     .exists;
 
-    if !is_participant {
-        return Err(AppError::Forbidden("Not a participant in target chat".into()));
+    if !is_participant.unwrap_or(false) {
+        return Err(AppError::Forbidden(
+            "Not a participant in target chat".into(),
+        ));
     }
 
     // Get original message
     let original_message = sqlx::query_as!(
         ChatMessage,
         r#"
-        SELECT m.*,
-            json_build_object(
-                'id', u.id,
-                'username', u.username,
-                'email', u.email
-            ) as sender
-        FROM messages m
-        JOIN users u ON u.id = m.sender_id
-        WHERE m.id = $1
+        SELECT id, chat_id, sender_id, content, media_url, media_type, reply_to_id, created_at, updated_at
+        FROM messages
+        WHERE id = $1
         "#,
-        message_id
-    )
-    .fetch_optional(&pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Message not found".into()))?;
-
-    // Create forwarded message
-    let message = sqlx::query_as!(
-        ChatMessage,
-        r#"
-        INSERT INTO messages (chat_id, sender_id, content, media_type, reply_to_id)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING *
-        "#,
-        req.target_chat_id,
-        auth_user.id,
-        original_message.content,
-        original_message.media_type,
-        None::<i32>
+        req.message_id
     )
     .fetch_one(&pool)
     .await?;
 
-    // Update target chat's updated_at
+    // Insert forwarded message into target chat
     sqlx::query!(
-        "UPDATE chats SET updated_at = NOW() WHERE id = $1",
-        req.target_chat_id
+        "INSERT INTO messages (chat_id, sender_id, content, media_url)
+         VALUES ($1, $2, $3, $4)",
+        target_chat_id,
+        auth_user.id,
+        original_message.content,
+        original_message.media_url
     )
     .execute(&pool)
     .await?;
 
-    Ok((StatusCode::CREATED, Json(message)))
+    Ok((StatusCode::CREATED, "Message forwarded"))
 }
 
 pub async fn mark_as_read(
     State(pool): State<PgPool>,
     auth_user: AuthUser,
-    Path((chat_id, message_id)): Path<(i32, i32)>,
+    Path((chat_id, message_id)): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse, AppError> {
     // Check if user is a participant
     let is_participant = sqlx::query!(
@@ -251,7 +237,7 @@ pub async fn mark_as_read(
     .await?
     .exists;
 
-    if !is_participant {
+    if !is_participant.unwrap_or(false) {
         return Err(AppError::Forbidden("Not a participant in this chat".into()));
     }
 
@@ -274,7 +260,7 @@ pub async fn mark_as_read(
 pub async fn get_read_receipts(
     State(pool): State<PgPool>,
     auth_user: AuthUser,
-    Path((chat_id, message_id)): Path<(i32, i32)>,
+    Path((chat_id, message_id)): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse, AppError> {
     // Check if user is a participant
     let is_participant = sqlx::query!(
@@ -286,21 +272,22 @@ pub async fn get_read_receipts(
     .await?
     .exists;
 
-    if !is_participant {
+    if !is_participant.unwrap_or(false) {
         return Err(AppError::Forbidden("Not a participant in this chat".into()));
     }
 
     // Get read receipts
-    let read_receipts = sqlx::query!(
+    let read_receipts = sqlx::query_as!(
+        ReadReceiptResponse,
         r#"
         SELECT 
-            u.id,
-            u.username,
-            mr.created_at as read_at
+            u.id as id,
+            u.username as username,
+            mr.read_at as read_at
         FROM message_reads mr
         JOIN users u ON u.id = mr.user_id
         WHERE mr.message_id = $1
-        ORDER BY mr.created_at ASC
+        ORDER BY mr.read_at ASC
         "#,
         message_id
     )
@@ -308,4 +295,4 @@ pub async fn get_read_receipts(
     .await?;
 
     Ok(Json(read_receipts))
-} 
+}

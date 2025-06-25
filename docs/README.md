@@ -1,119 +1,252 @@
-# Documentation
-
-## Overview
-This documentation provides comprehensive information about the messaging application, including setup, development, deployment, and API details. Our documentation is organized into several key sections, each providing in-depth coverage of specific aspects of the system.
+# Messaging App Documentation
 
 ## Table of Contents
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Features](#features)
+- [Project Structure](#project-structure)
+- [Environment Variables](#environment-variables)
+- [API Endpoints](#api-endpoints)
+- [WebSocket Protocol](#websocket-protocol)
+- [Database Schema](#database-schema)
+- [Security](#security)
+- [Testing](#testing)
+- [DevOps & Deployment](#devops--deployment)
+- [Development Workflow](#development-workflow)
+- [Extensibility](#extensibility)
+- [FAQ](#faq)
 
-### Getting Started
-- [Development Guide](DEVELOPMENT.md) - Complete development environment setup, coding standards, testing procedures, and release management
-- [Environment Configuration](DEVELOPMENT.md#environment-setup) - Detailed environment variables, development tools, and configuration options
-- [Project Structure](DEVELOPMENT.md#project-structure) - Comprehensive overview of codebase organization and architecture
+---
 
-### Architecture
-- [System Architecture](ARCHITECTURE.md) - Detailed system design, component interactions, and data flow
-- [Component Design](ARCHITECTURE.md#system-design) - In-depth analysis of each system component and their responsibilities
-- [Data Models](ARCHITECTURE.md#data-models) - Complete data model specifications and relationships
-- [Security Architecture](ARCHITECTURE.md#security-architecture) - Comprehensive security measures and protocols
+## Overview
+A full-stack messaging application inspired by WhatsApp, featuring real-time chat, group messaging, media sharing, and robust security. The backend is built with Rust (Axum), PostgreSQL, and Redis, while the frontend uses Next.js.
 
-### API Reference
-- [API Documentation](API.md) - Complete API reference with detailed endpoint specifications
-- [Authentication](API.md#authentication) - Comprehensive authentication mechanisms and security protocols
-- [Endpoints](API.md#endpoints) - Detailed API endpoint documentation with request/response examples
-- [WebSocket API](API.md#websocket-api) - Real-time communication protocols and event handling
+---
 
-### Operations
-- [Operations Guide](OPERATIONS.md) - Complete operational procedures and best practices
-- [Deployment](OPERATIONS.md#deployment) - Detailed deployment procedures for various environments
-- [Monitoring](OPERATIONS.md#monitoring) - Comprehensive monitoring setup and alerting configuration
-- [Backup and Recovery](OPERATIONS.md#backup-and-recovery) - Complete backup strategies and disaster recovery procedures
-- [Security](OPERATIONS.md#security) - Detailed security measures and hardening procedures
-- [Maintenance](OPERATIONS.md#maintenance) - Regular maintenance tasks and performance optimization
+## Architecture
+- **Backend:** Rust (Axum), REST API, WebSocket, JWT Auth, PostgreSQL, Redis, Docker
+- **Frontend:** Next.js, React, HTML/CSS/JS, WebSocket, REST API
+- **DevOps:** Docker Compose, Nginx, Grafana (monitoring)
 
-### User Guide
-- [User Guide](USER_GUIDE.md) - Complete user documentation and feature guides
-- [Getting Started](USER_GUIDE.md#getting-started) - Detailed user onboarding and account setup
-- [Messaging Features](USER_GUIDE.md#messaging-features) - Comprehensive messaging functionality guide
-- [Media Features](USER_GUIDE.md#media-features) - Complete media handling and sharing guide
-- [Privacy and Security](USER_GUIDE.md#privacy-and-security) - Detailed privacy controls and security features
+```
+[Client (Next.js)] <--> [Nginx] <--> [Axum API/WebSocket] <--> [PostgreSQL, Redis]
+```
 
-### Monitoring & Operations
-- [Monitoring Guide](MONITORING.md) - Complete monitoring setup and configuration
-- [Metrics & Alerts](MONITORING.md#metrics) - Detailed metrics collection and alerting rules
-- [Logging](MONITORING.md#logging) - Comprehensive logging configuration and analysis
-- [Performance](MONITORING.md#performance) - Detailed performance monitoring and optimization
+---
 
-### Troubleshooting
-- [Troubleshooting Guide](TROUBLESHOOTING.md) - Complete troubleshooting procedures and solutions
-- [Common Issues](TROUBLESHOOTING.md#common-issues) - Detailed solutions for frequent problems
-- [Debugging](TROUBLESHOOTING.md#debugging) - Comprehensive debugging techniques and tools
-- [Error Handling](TROUBLESHOOTING.md#error-handling) - Detailed error handling procedures
+## Features
+### Backend
+- JWT authentication (login, register, refresh)
+- WebSocket real-time chat (1:1, group)
+- REST APIs for users, messages, media, groups
+- Group chat with admin roles
+- Message status (sent, delivered, read)
+- Media upload (images, files)
+- PostgreSQL (persistent data)
+- Redis (caching, pub/sub)
+- E2EE preparation (public/private key fields, endpoints)
+- OpenAPI documentation
+- Dockerized
+
+### Frontend
+- Login, registration
+- Chat list, chat window
+- Group chat UI, admin controls
+- Real-time chat (WebSocket)
+- Media upload
+- Message status indicators
+- E2EE key upload/fetch
+- Responsive, modern UI
+
+---
+
+## Project Structure
+```
+backend/
+  src/           # Rust source code
+    db/          # Database logic
+    handlers/    # HTTP/WebSocket handlers
+    middleware/  # Auth, CORS, etc.
+    models/      # Data models
+    routes/      # API routes
+    services/    # Business logic
+    websocket/   # WebSocket logic
+  migrations/    # SQL migrations
+  grafana/       # Monitoring dashboards
+  scripts/       # Utility scripts
+  tests/         # Integration/unit tests
+frontend/
+  src/app/       # Next.js app directory
+    api/         # API route handlers
+    components/  # React components
+    hooks/       # Custom hooks
+    lib/         # Utilities
+    store/       # State management
+    types/       # TypeScript types
+  public/        # Static assets
+  styles/        # CSS
+  utils/         # Utilities
+  stores/        # Zustand stores
+  pages/         # (If using pages router)
+docs/            # Documentation
+```
+
+---
+
+## Environment Variables
+### Backend (`backend/.env`)
+- `DATABASE_URL` - PostgreSQL connection string
+- `REDIS_URL` - Redis connection string
+- `JWT_SECRET` - JWT signing secret
+- `MEDIA_UPLOAD_PATH` - Path for storing uploaded media
+- `CORS_ORIGIN` - Allowed frontend origin
+- `PORT` - API server port
+- `RUST_LOG` - Logging level
+
+### Frontend (`frontend/.env`)
+- `NEXT_PUBLIC_API_URL` - Backend API base URL
+- `NEXT_PUBLIC_WS_URL` - WebSocket URL
+- `NEXT_PUBLIC_MEDIA_URL` - Media base URL
+
+> See `docs/backend_env.example.md` and `docs/frontend_env.example.md` for templates.
+
+---
+
+## API Endpoints
+### Auth
+- `POST /api/auth/register` - Register new user
+- `POST /api/auth/login` - Login
+- `POST /api/auth/refresh` - Refresh JWT
+
+### Users
+- `GET /api/users/me` - Get current user
+- `GET /api/users/:id` - Get user by ID
+- `POST /api/users/public_key` - Upload public key (E2EE)
+- `GET /api/users/:id/public_key` - Fetch user's public key
+
+### Chats
+- `GET /api/chats` - List user chats
+- `POST /api/chats` - Create chat
+- `GET /api/chats/:id` - Get chat details
+- `GET /api/chats/:id/messages` - List messages
+- `POST /api/chats/:id/messages` - Send message
+
+### Groups
+- `POST /api/groups` - Create group
+- `GET /api/groups/:id` - Get group info
+- `POST /api/groups/:id/members` - Add member
+- `DELETE /api/groups/:id/members/:userId` - Remove member
+- `POST /api/groups/:id/admins` - Add admin
+- `DELETE /api/groups/:id/admins/:userId` - Remove admin
+
+### Media
+- `POST /api/media/upload` - Upload media
+- `GET /api/media/:id` - Fetch media
+
+### Message Status
+- `POST /api/messages/:id/status` - Update message status
+
+> All endpoints are prefixed with `/api/`.
+
+---
+
+## WebSocket Protocol
+- **Endpoint:** `ws(s)://<host>/api/ws`
+- **Auth:** JWT token in query or header
+- **Events:**
+  - `message:new` - New message
+  - `message:status` - Message status update
+  - `chat:created` - New chat
+  - `group:updated` - Group changes
+  - `typing` - Typing indicator
+- **Payloads:** JSON objects (see OpenAPI docs)
+
+---
+
+## Database Schema (Simplified)
+- **users**: id, username, email, password_hash, public_key, private_key_encrypted, ...
+- **chats**: id, is_group, name, ...
+- **chat_members**: chat_id, user_id, is_admin
+- **messages**: id, chat_id, sender_id, content, media_id, status, timestamp
+- **media**: id, url, uploader_id, type, ...
+- **message_status**: message_id, user_id, status
+
+---
+
+## Security
+- JWT authentication (access/refresh tokens)
+- Argon2 password hashing
+- Strong password policy
+- CORS restrictions
+- Input validation (backend & frontend)
+- Rate limiting (recommended)
+- E2EE preparation (public/private key storage, endpoints)
+- HTTPS (recommended in production)
+
+---
+
+## Testing
+- **Backend:**
+  - Unit tests (handlers, services)
+  - Integration tests (API, WebSocket)
+  - Group chat, E2EE, media, and WebSocket robustness
+- **Frontend:**
+  - Component tests
+  - API integration tests
+  - E2EE key upload/fetch
+  - Group chat UI
+
+---
+
+## DevOps & Deployment
+- **Docker Compose** for local development
+- **Nginx** as reverse proxy
+- **Grafana** for monitoring
+- **.env** files for configuration
+- **CI/CD** (recommended: GitHub Actions, etc.)
+- **Production:**
+  - Use HTTPS
+  - Secure secrets
+  - Scale with Docker/Kubernetes
+
+---
+
+## Development Workflow
+1. Clone repo & set up `.env` files (see examples)
+2. `docker-compose up` to start backend, frontend, db, redis
+3. Run migrations (`backend`)
+4. Access frontend at `localhost:3000`, backend at `localhost:8000`
+5. Run tests as needed
+
+---
+
+## Extensibility
+- Add new features by extending API routes and frontend components
+- Add new message types (e.g., voice, video)
+- Integrate push notifications
+- Complete E2EE (key exchange, message encryption)
+- Add mobile app (React Native, etc.)
+
+---
+
+## FAQ
+**Q: How do I reset my password?**
+A: Implement password reset endpoints and UI (not included by default).
+
+**Q: How do I enable full E2EE?**
+A: Use the provided key endpoints and extend with client-side encryption/decryption.
+
+**Q: How do I deploy to production?**
+A: Use Docker Compose or Kubernetes, secure secrets, enable HTTPS, and monitor with Grafana.
+
+**Q: Where are media files stored?**
+A: On the backend server at the path specified by `MEDIA_UPLOAD_PATH`.
+
+---
+
+For further details, see code comments, OpenAPI docs, and the rest of the documentation in this directory.
 
 ## Quick Start
 
 1. Clone the repository
-   ```bash
-   git clone https://github.com/your-org/messaging-app.git
-   cd messaging-app
    ```
-
-2. Set up environment variables
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   # Required variables:
-   # - Database configuration
-   # - Redis settings
-   # - JWT secrets
-   # - Media storage credentials
-   ```
-
-3. Install dependencies
-   ```bash
-   # Backend
-   cd backend
-   cargo build
-
-   # Frontend
-   cd ../frontend
-   npm install
-   ```
-
-4. Run database migrations
-   ```bash
-   cd ../backend
-   cargo run --bin migrate
-   ```
-
-5. Start the development servers
-   ```bash
-   # Backend
-   cargo run
-
-   # Frontend
-   cd ../frontend
-   npm run dev
-   ```
-
-For detailed instructions, see the [Development Guide](DEVELOPMENT.md).
-
-## Contributing
-
-Please read our [Development Guide](DEVELOPMENT.md) for details on our code of conduct and the process for submitting pull requests. The guide includes:
-- Development workflow
-- Code review process
-- Testing requirements
-- Documentation standards
-- Release procedures
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Support
-
-For additional support:
-- Check the [Troubleshooting Guide](TROUBLESHOOTING.md) for common issues
-- Review the [User Guide](USER_GUIDE.md) for feature documentation
-- Consult the [Operations Guide](OPERATIONS.md) for deployment and maintenance
-- Contact the development team for specific issues 

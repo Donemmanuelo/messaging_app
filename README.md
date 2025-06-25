@@ -1,384 +1,192 @@
-# Messaging Application
+# Messaging App
 
-A robust, production-ready messaging application built with Rust, featuring real-time communication, media sharing, and comprehensive monitoring.
+A full-stack, production-ready messaging application inspired by WhatsApp. Features include real-time chat, group chat, media uploads, message status, JWT authentication, end-to-end encryption (E2EE) ready, PostgreSQL, Redis, and Docker support.
+
+---
 
 ## Table of Contents
 - [Features](#features)
 - [Architecture](#architecture)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Running the Application](#running-the-application)
-- [Testing](#testing)
-- [Monitoring](#monitoring)
-- [Security](#security)
-- [Backup and Restore](#backup-and-restore)
-- [Maintenance](#maintenance)
-- [Improvement Suggestions](#improvement-suggestions)
+- [Requirements](#requirements)
+- [Quick Start (Docker)](#quick-start-docker)
+- [Manual Setup](#manual-setup)
+  - [Backend](#backend)
+  - [Frontend](#frontend)
+- [Environment Variables](#environment-variables)
+- [Database Migrations](#database-migrations)
+- [Running Tests](#running-tests)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
 
 ## Features
+- JWT authentication (secure login/register)
+- Real-time chat via WebSocket
+- Group chat with admin roles
+- Message status (delivered/read)
+- Media upload (images, files)
+- End-to-end encryption (E2EE) ready
+- PostgreSQL for persistent storage
+- Redis for caching and pub/sub
+- Dockerized for easy deployment
+- Comprehensive test coverage
 
-- Real-time messaging using WebSocket
-- Media file sharing and storage
-- User authentication and authorization
-- Message encryption
-- Rate limiting and security features
-- Comprehensive monitoring and alerting
-- Automated backups and cloud storage
-- Load balancing and high availability
-- SSL/TLS encryption
-- API documentation with OpenAPI/Swagger
+---
 
 ## Architecture
+- **Backend:** Rust (Axum), SQLx, JWT, WebSocket, PostgreSQL, Redis
+- **Frontend:** Next.js (React), TypeScript, HTML/CSS/JS
+- **DevOps:** Docker, docker-compose, Nginx (optional), environment variable management
 
-The application follows a microservices architecture with the following components:
+---
 
-- **Backend Service**: Rust-based API server
-- **Database**: PostgreSQL for persistent storage
-- **Cache**: Redis for real-time features
-- **Message Queue**: RabbitMQ for async processing
-- **Media Storage**: Local storage with cloud backup
-- **Monitoring**: Prometheus and Grafana
-- **Load Balancer**: Nginx
-- **Container Orchestration**: Docker and Docker Compose
+## Requirements
+- Docker & Docker Compose (recommended for easiest setup)
+- Or, for manual setup:
+  - Rust (latest stable)
+  - Node.js (v18+ recommended)
+  - PostgreSQL (v14+)
+  - Redis (v6+)
 
-## Prerequisites
+---
 
-- Docker and Docker Compose
-- Rust (latest stable version)
-- PostgreSQL 14+
-- Redis 6+
-- RabbitMQ 3.9+
-- Node.js 16+ (for frontend)
-- Nginx
-- SSL certificates
+## Quick Start (Docker)
 
-## Installation
+1. **Clone the repository:**
+   ```sh
+   git clone <repo-url>
+   cd messaging_app
+   ```
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/messaging-app.git
-cd messaging-app
-```
+2. **Copy environment variable templates:**
+   ```sh
+   cp backend/.env.example backend/.env
+   cp frontend/.env.example frontend/.env
+   ```
+   Edit the `.env` files as needed (see [Environment Variables](#environment-variables)).
 
-2. Set up environment variables:
-```bash
-cp .env.example .env
-# Edit .env with your configuration
-```
+3. **Start all services:**
+   ```sh
+   docker-compose up --build
+   ```
+   - Backend: http://localhost:8000
+   - Frontend: http://localhost:3000
+   - PostgreSQL: localhost:5432
+   - Redis: localhost:6379
 
-3. Build the application:
-```bash
-docker-compose build
-```
+4. **Access the app:**
+   - Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-4. Initialize the database:
-```bash
-docker-compose run --rm backend cargo run --bin migrate
-```
+---
 
-## Configuration
+## Manual Setup
 
-### Environment Variables
+### Backend
+1. **Install dependencies:**
+   - Rust: https://rustup.rs/
+   - Install SQLx CLI (for migrations):
+     ```sh
+     cargo install sqlx-cli --no-default-features --features postgres
+     ```
+2. **Set up environment variables:**
+   ```sh
+   cp backend/.env.example backend/.env
+   # Edit backend/.env with your DB/Redis credentials
+   ```
+3. **Start PostgreSQL and Redis** (if not using Docker):
+   - PostgreSQL: `sudo service postgresql start`
+   - Redis: `sudo service redis-server start`
+4. **Run database migrations:**
+   ```sh
+   cd backend
+   sqlx migrate run
+   ```
+5. **Run the backend server:**
+   ```sh
+   cargo run
+   ```
+   - API: http://localhost:8000/api/
 
-Key configuration variables in `.env`:
+### Frontend
+1. **Install dependencies:**
+   ```sh
+   cd frontend
+   npm install
+   ```
+2. **Set up environment variables:**
+   ```sh
+   cp .env.example .env
+   # Edit .env as needed
+   ```
+3. **Run the frontend dev server:**
+   ```sh
+   npm run dev
+   ```
+   - App: http://localhost:3000
 
-```env
-# Application
-APP_ENV=production
-APP_PORT=8080
-APP_HOST=0.0.0.0
+---
 
-# Database
-DB_HOST=postgres
-DB_PORT=5432
-DB_NAME=messaging_app
-DB_USER=postgres
-DB_PASSWORD=your_password
+## Environment Variables
 
-# Redis
-REDIS_HOST=redis
-REDIS_PORT=6379
+### Backend (`backend/.env`)
+- `DATABASE_URL` - PostgreSQL connection string
+- `REDIS_URL` - Redis connection string
+- `JWT_SECRET` - Secret for JWT signing
+- `MEDIA_UPLOAD_PATH` - Path for storing uploaded media
+- `RUST_LOG` - Log level (e.g., info, debug)
 
-# RabbitMQ
-RABBITMQ_HOST=rabbitmq
-RABBITMQ_PORT=5672
-RABBITMQ_USER=guest
-RABBITMQ_PASSWORD=guest
+### Frontend (`frontend/.env`)
+- `NEXT_PUBLIC_API_URL` - Backend API base URL (e.g., http://localhost:8000/api)
+- `NEXT_PUBLIC_WS_URL` - WebSocket URL (e.g., ws://localhost:8000/ws)
 
-# Security
-JWT_SECRET=your_jwt_secret
-ENCRYPTION_KEY=your_encryption_key
+See `.env.example` files in each directory for all options.
 
-# Media Storage
-MEDIA_STORAGE_PATH=/app/media
-MAX_FILE_SIZE=10485760  # 10MB
+---
 
-# Monitoring
-PROMETHEUS_PORT=9090
-GRAFANA_PORT=3000
-```
+## Database Migrations
+- **Run migrations:**
+  ```sh
+  cd backend
+  sqlx migrate run
+  ```
+- **Prepare SQLx query cache (optional, for offline builds):**
+  ```sh
+  cargo sqlx prepare
+  ```
 
-### SSL/TLS Configuration
+---
 
-1. Generate SSL certificates:
-```bash
-./scripts/setup_ssl.sh
-```
+## Running Tests
 
-2. Configure Nginx:
-```bash
-./scripts/setup_nginx.sh
-```
-
-## Running the Application
-
-### Development Mode
-
-```bash
-# Start all services
-docker-compose up
-
-# Start specific service
-docker-compose up backend
-
-# Run with hot reload
-cargo watch -x run
-```
-
-### Production Mode
-
-```bash
-# Start all services
-docker-compose -f docker-compose.prod.yml up -d
-
-# Check service status
-docker-compose -f docker-compose.prod.yml ps
-```
-
-## Testing
-
-### Unit Tests
-
-```bash
-# Run all unit tests
+### Backend
+```sh
+cd backend
 cargo test
-
-# Run specific test
-cargo test test_name
-
-# Run tests with coverage
-cargo tarpaulin
 ```
 
-### Integration Tests
-
-```bash
-# Run integration tests
-cargo test --test integration_tests
-
-# Run specific integration test
-cargo test --test integration_tests test_name
+### Frontend
+```sh
+cd frontend
+npm test
 ```
 
-### Load Testing
+---
 
-```bash
-# Run load test
-./scripts/run_load_test.sh
+## Troubleshooting
+- **Port conflicts:** Change ports in `.env` or `docker-compose.yml` if needed.
+- **Database errors:** Ensure PostgreSQL and Redis are running and credentials are correct.
+- **SQLx errors:** Set `DATABASE_URL` or run `cargo sqlx prepare` before building.
+- **Frontend API errors:** Check `NEXT_PUBLIC_API_URL` in `frontend/.env`.
+- **CORS issues:** Ensure backend CORS settings allow frontend origin.
 
-# Run specific load test scenario
-k6 run tests/load/websocket.js
-```
-
-### Security Testing
-
-```bash
-# Run security scan
-./scripts/security_scan.sh
-
-# Run dependency audit
-cargo audit
-```
-
-## Monitoring
-
-### Prometheus Metrics
-
-Access Prometheus at `http://localhost:9090`
-
-Key metrics:
-- Request latency
-- Error rates
-- Database performance
-- Redis metrics
-- System resources
-
-### Grafana Dashboards
-
-Access Grafana at `http://localhost:3000`
-
-Available dashboards:
-- Application Overview
-- Database Performance
-- System Health
-- Message Queue Status
-- Security Metrics
-
-### Alerts
-
-Configured alerts include:
-- High error rates
-- Slow response times
-- Database issues
-- System resource usage
-- Security incidents
-
-## Security
-
-### Security Features
-
-- JWT authentication
-- Rate limiting
-- Input validation
-- SQL injection prevention
-- XSS protection
-- CSRF protection
-- Secure headers
-- SSL/TLS encryption
-
-### Security Maintenance
-
-```bash
-# Update dependencies
-./scripts/update_dependencies.sh
-
-# Run security scan
-./scripts/security_scan.sh
-
-# Check SSL configuration
-./scripts/check_ssl.sh
-```
-
-## Backup and Restore
-
-### Automated Backups
-
-```bash
-# Configure backup schedule
-./scripts/setup_backup.sh
-
-# Manual backup
-./scripts/backup.sh
-
-# Restore from backup
-./scripts/restore.sh
-```
-
-### Cloud Storage
-
-Supported cloud providers:
-- AWS S3
-- Google Cloud Storage
-- Azure Blob Storage
-
-## Maintenance
-
-### Regular Maintenance Tasks
-
-1. **Daily**:
-   - Monitor error logs
-   - Check backup status
-   - Review security alerts
-
-2. **Weekly**:
-   - Update dependencies
-   - Run security scans
-   - Clean up old backups
-
-3. **Monthly**:
-   - Review performance metrics
-   - Update SSL certificates
-   - Database maintenance
-
-### Performance Optimization
-
-1. **Database**:
-   - Regular VACUUM
-   - Index optimization
-   - Query optimization
-
-2. **Application**:
-   - Cache optimization
-   - Connection pooling
-   - Resource limits
-
-3. **System**:
-   - Disk space management
-   - Log rotation
-   - Resource monitoring
-
-## Improvement Suggestions
-
-### Short-term Improvements
-
-1. **Performance**:
-   - Implement connection pooling
-   - Add request caching
-   - Optimize database queries
-
-2. **Features**:
-   - Add message reactions
-   - Implement file preview
-   - Add user presence
-
-3. **Security**:
-   - Add 2FA support
-   - Implement IP whitelisting
-   - Add audit logging
-
-### Long-term Improvements
-
-1. **Scalability**:
-   - Implement sharding
-   - Add read replicas
-   - Use message partitioning
-
-2. **Architecture**:
-   - Split into microservices
-   - Add service mesh
-   - Implement CQRS
-
-3. **Monitoring**:
-   - Add distributed tracing
-   - Implement APM
-   - Add synthetic monitoring
-
-### Development Workflow
-
-1. **CI/CD**:
-   - Add automated testing
-   - Implement deployment pipeline
-   - Add performance testing
-
-2. **Documentation**:
-   - Add API documentation
-   - Create user guides
-   - Document architecture
-
-3. **Quality**:
-   - Add code coverage
-   - Implement static analysis
-   - Add security scanning
+---
 
 ## Contributing
+Pull requests and issues are welcome! Please see [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests
-5. Submit a pull request
+---
 
 ## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT 

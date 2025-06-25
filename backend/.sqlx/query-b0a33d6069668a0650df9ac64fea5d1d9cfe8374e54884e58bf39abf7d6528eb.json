@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT role FROM chat_participants\n        WHERE chat_id = $1::uuid AND user_id = $2::uuid AND role = 'admin'\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "role",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "b0a33d6069668a0650df9ac64fea5d1d9cfe8374e54884e58bf39abf7d6528eb"
+}
