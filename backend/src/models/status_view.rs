@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -7,5 +7,5 @@ pub struct StatusView {
     pub id: i32,
     pub status_id: Uuid,
     pub user_id: Uuid,
-    pub viewed_at: DateTime<Utc>,
+    pub viewed_at: NaiveDateTime,
 } 

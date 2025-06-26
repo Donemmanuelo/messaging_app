@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, NaiveDateTime};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
@@ -12,14 +12,17 @@ pub struct User {
     pub display_name: Option<String>,
     pub avatar_url: Option<String>,
     pub status: Option<String>,
-    pub last_seen: Option<DateTime<Utc>>,
+    pub last_seen: Option<NaiveDateTime>,
     pub is_online: bool,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
     /// Public key for end-to-end encryption (E2EE)
     pub public_key: Option<String>,
     /// Encrypted private key for E2EE (should be encrypted with user's password)
     pub private_key_encrypted: Option<String>,
+    pub phone_number: Option<String>,
+    pub otp_code: Option<String>,
+    pub otp_expires_at: Option<NaiveDateTime>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -30,7 +33,7 @@ pub struct UserResponse {
     pub display_name: Option<String>,
     pub avatar_url: Option<String>,
     pub status: Option<String>,
-    pub last_seen: Option<DateTime<Utc>>,
+    pub last_seen: Option<NaiveDateTime>,
     pub is_online: bool,
     /// Public key for end-to-end encryption (E2EE)
     pub public_key: Option<String>,
@@ -42,6 +45,7 @@ pub struct CreateUserRequest {
     pub email: String,
     pub password: String,
     pub display_name: Option<String>,
+    pub phone_number: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

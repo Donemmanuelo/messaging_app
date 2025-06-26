@@ -33,7 +33,7 @@ pub async fn get_user(
 
     let user = sqlx::query_as!(
         User,
-        r#"SELECT id, username, email, password_hash, display_name, avatar_url, status, last_seen, is_online, created_at, updated_at, public_key, private_key_encrypted FROM users WHERE id = $1"#,
+        r#"SELECT id, username, email, password_hash, display_name, avatar_url, status, last_seen, is_online, created_at, updated_at, public_key, private_key_encrypted, phone_number, otp_code, otp_expires_at FROM users WHERE id = $1"#,
         user_id
     )
     .fetch_one(&_state.pool)
@@ -55,7 +55,7 @@ pub async fn update_user(
 ) -> Result<impl IntoResponse, AppError> {
     let user = sqlx::query_as!(
         User,
-        r#"UPDATE users SET display_name = $1, avatar_url = $2, status = $3, updated_at = NOW() WHERE id = $4 RETURNING id, username, email, password_hash, display_name, avatar_url, status, last_seen, is_online, created_at, updated_at, public_key, private_key_encrypted"#,
+        r#"UPDATE users SET display_name = $1, avatar_url = $2, status = $3, updated_at = NOW() WHERE id = $4 RETURNING id, username, email, password_hash, display_name, avatar_url, status, last_seen, is_online, created_at, updated_at, public_key, private_key_encrypted, phone_number, otp_code, otp_expires_at"#,
         update.display_name,
         update.avatar_url,
         update.status,
@@ -90,7 +90,7 @@ pub async fn get_users(
 
     let users = sqlx::query_as!(
         User,
-        r#"SELECT id, username, email, password_hash, display_name, avatar_url, status, last_seen, is_online, created_at, updated_at, public_key, private_key_encrypted FROM users ORDER BY created_at DESC"#,
+        r#"SELECT id, username, email, password_hash, display_name, avatar_url, status, last_seen, is_online, created_at, updated_at, public_key, private_key_encrypted, phone_number, otp_code, otp_expires_at FROM users ORDER BY created_at DESC"#,
     )
     .fetch_all(&_state.pool)
     .await?;

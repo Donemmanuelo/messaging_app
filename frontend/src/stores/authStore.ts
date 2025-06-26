@@ -13,8 +13,9 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (username: string, email: string, password: string, displayName?: string) => Promise<void>;
+  login: (phone_number: string, otp_code: string) => Promise<void>;
+  requestOtp: (phone_number: string) => Promise<void>;
+  verifyOtp: (phone_number: string, otp_code: string) => Promise<void>;
   logout: () => void;
   clearError: () => void;
 }
@@ -28,49 +29,39 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       error: null,
 
-      login: async (email: string, password: string) => {
+      requestOtp: async (phone_number: string) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await fetch('/api/auth/login', {
+          const response = await fetch('/api/auth/request_otp', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password }),
+            body: JSON.stringify({ phone_number }),
           });
-
-          const data = await response.json();
-
           if (!response.ok) {
-            throw new Error(data.message || 'Login failed');
+            const data = await response.json();
+            throw new Error(data.message || 'Failed to send OTP');
           }
-
-          set({
-            user: data.user,
-            token: data.token,
-            isAuthenticated: true,
-            isLoading: false,
-          });
+          set({ isLoading: false });
         } catch (error) {
           set({
-            error: error instanceof Error ? error.message : 'Login failed',
+            error: error instanceof Error ? error.message : 'Failed to send OTP',
             isLoading: false,
           });
           throw error;
         }
       },
 
-      register: async (username: string, email: string, password: string, displayName?: string) => {
+      verifyOtp: async (phone_number: string, otp_code: string) => {
         set({ isLoading: true, error: null });
         try {
-          const body: any = { username, email, password };
-          if (displayName) body.displayName = displayName;
-          const response = await fetch('/api/auth/register', {
+          const response = await fetch('/api/auth/verify_otp', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
+            body: JSON.stringify({ phone_number, otp_code }),
           });
           const data = await response.json();
           if (!response.ok) {
-            throw new Error(data.message || 'Registration failed');
+            throw new Error(data.message || 'OTP verification failed');
           }
           set({
             user: data.user,
@@ -80,11 +71,16 @@ export const useAuthStore = create<AuthState>()(
           });
         } catch (error) {
           set({
-            error: error instanceof Error ? error.message : 'Registration failed',
+            error: error instanceof Error ? error.message : 'OTP verification failed',
             isLoading: false,
           });
           throw error;
         }
+      },
+
+      login: async (phone_number: string, otp_code: string) => {
+        // For compatibility, just call verifyOtp
+        return await (useAuthStore.getState().verifyOtp(phone_number, otp_code));
       },
 
       logout: () => {

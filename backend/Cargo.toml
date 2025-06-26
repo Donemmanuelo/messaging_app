@@ -58,6 +58,8 @@ tokio-tungstenite = "0.21"
 web-push = "0.10"
 base64 = "0.21"
 hyper = "0.14"
+rand = "0.9.1"
+twilio = "1.1.0"
 
 [dev-dependencies]
 tokio-test = "0.4"

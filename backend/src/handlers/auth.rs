@@ -6,6 +6,9 @@ use axum::{
 use bcrypt::{hash, verify, DEFAULT_COST};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use rand::Rng;
+use chrono::{Utc, Duration};
+use twilio::{Client as TwilioClient, OutboundMessage};
 
 use crate::{
     auth::{create_token, AuthUser},
@@ -25,6 +28,24 @@ pub struct LoginRequest {
 pub struct TokenResponse {
     pub token: String,
     pub user: UserResponse,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RequestOtp {
+    pub phone_number: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VerifyOtp {
+    pub phone_number: String,
+    pub otp_code: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetProfileRequest {
+    pub phone_number: String,
+    pub username: String,
+    pub display_name: Option<String>,
 }
 
 pub async fn register(
@@ -73,7 +94,7 @@ pub async fn register(
                 gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW()
             )
             RETURNING
-                id, username, email, password_hash, display_name, avatar_url, status, last_seen, is_online as "is_online!", public_key, private_key_encrypted, created_at, updated_at
+                id, username, email, password_hash, display_name, avatar_url, status, last_seen, is_online as "is_online!", public_key, private_key_encrypted, created_at, updated_at, phone_number, otp_code, otp_expires_at
         "#,
         req.username,
         req.email,
@@ -84,7 +105,7 @@ pub async fn register(
         None::<chrono::DateTime<chrono::Utc>>, // last_seen
         false, // is_online
         None::<String>, // public_key
-        None::<String>, // private_key_encrypted
+        None::<String> // private_key_encrypted
     )
     .fetch_one(&state.pool)
     .await
@@ -124,7 +145,10 @@ pub async fn login(
                 public_key, 
                 private_key_encrypted, 
                 created_at, 
-                updated_at
+                updated_at,
+                phone_number,
+                otp_code,
+                otp_expires_at
             FROM users 
             WHERE email = $1
         "#,
@@ -176,7 +200,10 @@ pub async fn refresh_token(
                 public_key, 
                 private_key_encrypted, 
                 created_at, 
-                updated_at
+                updated_at,
+                phone_number,
+                otp_code,
+                otp_expires_at
             FROM users 
             WHERE id = $1
         "#,
@@ -195,5 +222,48 @@ pub async fn refresh_token(
             user: user.into(),
         }),
     ))
+}
+
+pub async fn request_otp(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<RequestOtp>,
+) -> Result<impl IntoResponse, AppError> {
+    // Generate 6-digit OTP
+    let mut rng = rand::thread_rng();
+    let otp: String = (0..6).map(|_| rng.gen_range(0..10).to_string()).collect();
+    // TODO: Implement OTP functionality when database schema is updated
+    // For now, return a placeholder response
+    Ok((StatusCode::OK, otp))
+}
+
+pub async fn verify_otp(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<VerifyOtp>,
+) -> Result<impl IntoResponse, AppError> {
+    // TODO: Implement OTP verification when database schema is updated
+    // For now, return an error
+    Err(AppError::BadRequest("OTP functionality not yet implemented".to_string()))
+}
+
+pub async fn set_profile(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<SetProfileRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    // Update the user profile for the given phone number
+    let user = sqlx::query_as!(
+        User,
+        r#"
+        UPDATE users
+        SET username = $1, display_name = $2, updated_at = NOW()
+        WHERE phone_number = $3
+        RETURNING id, username, email, password_hash, display_name, avatar_url, status, last_seen as "last_seen: Option<chrono::NaiveDateTime>", is_online as "is_online!", created_at, updated_at, public_key, private_key_encrypted, phone_number, otp_code, otp_expires_at as "otp_expires_at: Option<chrono::NaiveDateTime>"
+        "#,
+        req.username,
+        req.display_name,
+        req.phone_number
+    )
+    .fetch_one(&state.pool)
+    .await?;
+    Ok(Json(user))
 }
 
