@@ -15,6 +15,9 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 use crate::middleware::AuthUser;
+use crate::services::web_push::{PushSubscription as WebPushSubscription, PushSubscriptionKeys, VapidConfig, send_web_push};
+use serde_json::Value as JsonValue;
+use sqlx::Row;
 
 const MAX_MESSAGE_LENGTH: usize = 4000;
 
@@ -132,6 +135,32 @@ pub async fn send_message(
     .fetch_one(&state.pool)
     .await?;
 
+    // Send push notification to receiver
+    let subs = sqlx::query(
+        "SELECT endpoint, keys::text as keys_str FROM push_subscriptions WHERE user_id = $1"
+    )
+    .bind(receiver_id)
+    .fetch_all(&state.pool)
+    .await?;
+    let vapid = VapidConfig::from_env();
+    for sub in subs {
+        let endpoint: String = sub.try_get("endpoint")?;
+        let keys_str: String = sub.try_get("keys_str")?;
+        if let Ok(keys) = serde_json::from_str::<PushSubscriptionKeys>(&keys_str) {
+            let push_sub = WebPushSubscription {
+                endpoint,
+                keys,
+            };
+            let payload = serde_json::json!({
+                "title": "New Message",
+                "body": sender.display_name.clone().unwrap_or("New message".to_string()),
+                "data": { "chat_id": req.chat_id.to_string() },
+            }).to_string();
+            let _ = send_web_push(&push_sub, &payload, &vapid).await;
+        }
+    }
+
+    
     Ok(Json(MessageResponse {
         id: message.id,
         sender_id: message.sender_id,
@@ -217,6 +246,40 @@ pub async fn send_group_message(
     )
     .fetch_one(&state.pool)
     .await?;
+
+    // Get group member ids except sender
+    let members = sqlx::query!(
+        "SELECT user_id FROM group_members WHERE group_id = $1 AND user_id != $2",
+        group_id,
+        auth_user.id
+    )
+    .fetch_all(&state.pool)
+    .await?;
+    let vapid = VapidConfig::from_env();
+    for member in members {
+        let subs = sqlx::query(
+            "SELECT endpoint, keys::text as keys_str FROM push_subscriptions WHERE user_id = $1"
+        )
+        .bind(member.user_id)
+        .fetch_all(&state.pool)
+        .await?;
+        for sub in subs {
+            let endpoint: String = sub.try_get("endpoint")?;
+            let keys_str: String = sub.try_get("keys_str")?;
+            if let Ok(keys) = serde_json::from_str::<PushSubscriptionKeys>(&keys_str) {
+                let push_sub = WebPushSubscription {
+                    endpoint,
+                    keys,
+                };
+                let payload = serde_json::json!({
+                    "title": "New Group Message",
+                    "body": sender.display_name.clone().unwrap_or("New group message".to_string()),
+                    "data": { "group_id": group_id.to_string() },
+                }).to_string();
+                let _ = send_web_push(&push_sub, &payload, &vapid).await;
+            }
+        }
+    }
 
     // Get group info
     let group = sqlx::query!(

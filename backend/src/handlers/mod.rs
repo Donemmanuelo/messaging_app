@@ -17,6 +17,10 @@ pub mod message_reactions;
 pub mod messages;
 pub mod users;
 pub mod ws;
+pub mod status;
+pub mod push;
+pub mod call_log;
+pub mod status_view;
 
 pub use auth::*;
 pub use chat::*;

@@ -18,18 +18,17 @@ use crate::{
     },
     // websocket::{handle_websocket, WebSocketState},
 };
-// use axum::Server;
 use axum::{
     extract::{
         ws::{Message, WebSocketUpgrade},
         State,
+        connect_info::IntoMakeServiceWithConnectInfo,
     },
     http::{HeaderValue, Method},
     response::IntoResponse,
     routing::{delete, get, post, put},
     Router,
 };
-// use dotenv::dotenv;
 use redis::Client;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
@@ -45,6 +44,7 @@ use tracing_appender::rolling;
 use tracing_subscriber::FmtSubscriber;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use tokio::sync::broadcast;
+use messaging_app_backend::create_app;
 
 mod api_docs;
 mod auth;
@@ -62,8 +62,10 @@ use routes::auth::auth_routes;
 use routes::group::group_routes;
 use routes::media::media_routes;
 use routes::message::message_routes;
+use routes::status::status_routes;
 // use routes::message_reactions::message_reactions_routes;
 use routes::users::users_routes;
+use routes::push::push_routes;
 
 #[derive(Clone)]
 struct AppState {
@@ -81,19 +83,11 @@ async fn health() -> &'static str {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
-    let subscriber = FmtSubscriber::builder()
+    FmtSubscriber::builder()
         .with_max_level(Level::INFO)
-        .with_target(false)
-        .with_thread_ids(true)
-        .with_file(true)
-        .with_line_number(true)
-        .with_thread_names(true)
-        .with_ansi(true)
-        .pretty()
         .init();
 
     // Load environment variables
-    // dotenv().ok();
     info!("Starting messaging app backend...");
 
     // Database setup
@@ -110,7 +104,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // WebSocket broadcast channel setup
     let (ws_tx, _) = broadcast::channel(100);
-
+    let pop = pool.clone();
+    let red_cli = redis_client.clone();
     let state = Arc::new(AppState {
         pool,
         ws_tx,
@@ -134,62 +129,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ])
         .allow_credentials(true);
 
-    // Build our application with a route
-    let app: Router<Arc<AppState>> = Router::new()
-        // .merge(swagger_router()) // Remove OpenAPI/Swagger for now
-        // Health check endpoints
-        .route("/health", get(health))
-        // .route("/ready", get(readiness_check))
-        // .route("/live", get(liveness_check))
-        // API routes are now only nested
-        .nest("/api", message_routes())
-        .nest("/api", group_routes())
-        .nest("/api", media_routes())
-        .nest("/api", users_routes())
-        .nest("/auth", auth_routes())
-        // .nest("/api", message_reactions_routes())
-        // .route("/ws", get(ws_handler))
-        .layer(cors)
-        .layer(tower_http::trace::TraceLayer::new_for_http())
-        .layer(tower_http::compression::CompressionLayer::new())
-        // .layer(security_headers())
-        // .layer(axum::middleware::from_fn(validate_request))
-        // .layer(axum::middleware::from_fn(add_security_headers))
-        .with_state(state.clone());
+    // Build the app using the library's function
+    let app = create_app(pop, red_cli);
 
-    // Run it
+    // Axum server startup
     let port = env::var("PORT").unwrap_or_else(|_| "3000".to_string());
-    let addr = format!("0.0.0.0:{}", port);
+    let addr: SocketAddr = format!("0.0.0.0:{}", port).parse()?;
     info!("Server running on {}", addr);
 
-    // Handle graceful shutdown
-    let shutdown_signal = async {
-        let ctrl_c = async {
-            signal::ctrl_c().await.expect("Failed to listen for ctrl+c");
-        };
-
-        #[cfg(unix)]
-        let terminate = async {
-            signal::unix::signal(signal::unix::SignalKind::terminate())
-                .expect("Failed to install SIGTERM handler")
-                .recv()
-                .await;
-        };
-
-        #[cfg(not(unix))]
-        let terminate = std::future::pending::<()>();
-
-        tokio::select! {
-            _ = ctrl_c => {},
-            _ = terminate => {},
-        }
-
-        info!("Shutting down gracefully...");
-    };
-
-    // Instead, use a placeholder or comment for server startup for now
-    // let server = axum::Server::bind(&addr.parse()?);
-    // graceful_shutdown(shutdown_signal, server.serve(app.into_make_service())).await;
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app).await?;
 
     Ok(())
 }

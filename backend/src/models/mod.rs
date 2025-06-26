@@ -8,6 +8,7 @@ use uuid::Uuid;
 pub mod group;
 pub mod message;
 pub mod user;
+pub mod status_view;
 
 pub use user::{User, UserResponse, CreateUserRequest, LoginRequest, UpdateProfileRequest};
 

@@ -31,7 +31,7 @@ pub struct AppState {
     pub ws_manager: Arc<WebSocketManager>,
 }
 
-pub fn create_app(pool: PgPool, redis: RedisClient) -> Router<Arc<AppState>> {
+pub fn create_app(pool: PgPool, redis: RedisClient) -> Router {
     let (ws_tx, _) = broadcast::channel(100);
     let state = Arc::new(AppState {
         pool,
