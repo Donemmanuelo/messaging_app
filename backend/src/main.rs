@@ -25,7 +25,7 @@ use axum::{
         connect_info::IntoMakeServiceWithConnectInfo,
     },
     http::{HeaderValue, Method},
-    response::IntoResponse,
+    response::{IntoResponse, Html},
     routing::{delete, get, post, put},
     Router,
 };
@@ -114,7 +114,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // CORS configuration
     let cors = CorsLayer::new()
-        .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
         .allow_methods([
             Method::GET,
             Method::POST,
@@ -131,6 +130,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Build the app using modular routers
     let app = Router::new()
+        .route("/", get(|| async { Html("<h1>Messaging App Backend is running</h1>") }))
         .nest("/api/auth", auth_routes())
         .nest("/api/groups", group_routes())
         .nest("/api/media", media_routes())
@@ -142,7 +142,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_state(state.clone());
 
     // Axum server startup
-    let port = env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    let port = env::var("PORT").unwrap_or_else(|_| "3001".to_string());
     let addr: SocketAddr = format!("0.0.0.0:{}", port).parse()?;
     info!("Server running on {}", addr);
 
