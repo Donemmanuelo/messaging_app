@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { useWebSocket } from '@/hooks/useWebSocket';
+import CallNotification from '@/components/CallNotification';
+import { useState } from 'react';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,11 +25,35 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const { incomingCall, setIncomingCall } = useWebSocket('ws://localhost:3001/ws');
+  // Placeholder: handle accept/decline
+  const handleAccept = () => {
+    // TODO: trigger WebRTC accept logic
+    setIncomingCall(null);
+  };
+  const handleDecline = () => {
+    // TODO: trigger WebRTC decline logic
+    setIncomingCall(null);
+  };
   return (
     <html lang="en">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#2563eb" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        style={{ minHeight: '100vh', width: '100vw', margin: 0, padding: 0 }}
       >
+        {incomingCall && (
+          <CallNotification
+            caller={incomingCall.caller}
+            callType={incomingCall.callType}
+            onAccept={handleAccept}
+            onDecline={handleDecline}
+          />
+        )}
         {children}
       </body>
     </html>

@@ -1,8 +1,6 @@
-use crate::config::Config as ConfigSource;
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::env;
-use std::fs::File;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct AppConfig {

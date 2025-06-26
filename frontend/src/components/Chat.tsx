@@ -5,6 +5,8 @@ import { ForwardMessage } from './ForwardMessage';
 import { useWebSocket } from '../hooks/useWebSocket';
 import type { WebSocketMessage } from '../types/chat';
 import { MessageSearch } from './MessageSearch';
+import { CallUI } from './CallUI';
+import { StatusList } from './Status';
 
 interface ChatMessage {
   id: string;
@@ -59,7 +61,7 @@ export const Chat: React.FC<ChatProps> = ({
   } | null>(null);
   const [forwardingMessages, setForwardingMessages] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { sendMessage: sendWebSocketMessage } = useWebSocket(chatId);
+  const { ws, sendMessage: sendWebSocketMessage } = useWebSocket(chatId);
 
   useEffect(() => {
     fetchMessages(chatId);
@@ -96,7 +98,7 @@ export const Chat: React.FC<ChatProps> = ({
     };
 
     try {
-      const response = await fetch('/api/messages', {
+      const response = await fetch(`/api/messages/${chatId}/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -182,6 +184,17 @@ export const Chat: React.FC<ChatProps> = ({
     return 'document';
   };
 
+  // Determine recipientId for one-to-one chat
+  let recipientId: string | undefined = undefined;
+  if (!isGroup) {
+    // Find the other participant (not the current user)
+    const lastMsg = messages.slice().reverse().find(m => m.sender.id !== currentUserId);
+    if (lastMsg) {
+      recipientId = lastMsg.sender.id;
+    }
+    // TODO: For new chats, you may need to pass recipientId as a prop or fetch from chat metadata
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -194,6 +207,7 @@ export const Chat: React.FC<ChatProps> = ({
     <div className="flex flex-col h-full">
       <div className="p-4 border-b">
         <MessageSearch chatId={chatId} />
+        <StatusList />
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
@@ -221,10 +235,16 @@ export const Chat: React.FC<ChatProps> = ({
         </div>
       )}
 
+      {/* Call UI integration */}
+      {ws && recipientId && (
+        <CallUI webSocket={ws} remoteUserId={recipientId} />
+      )}
+
       <MessageInput
         onSendMessage={handleSendMessage}
         replyingTo={replyingTo || undefined}
         onCancelReply={() => setReplyingTo(null)}
+        recipientId={recipientId}
       />
     </div>
   );

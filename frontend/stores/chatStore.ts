@@ -75,7 +75,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   fetchMessages: async (chatId: string) => {
     try {
-      const response = await axios.get(`${API_URL}/api/chats/${chatId}/messages`)
+      const response = await axios.get(`${API_URL}/api/messages/${chatId}`)
       set((state) => ({
         messages: {
           ...state.messages,
@@ -89,11 +89,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   sendMessage: async (chatId: string, content: string, messageType = 'text') => {
     try {
-      const response = await axios.post(`${API_URL}/api/chats/${chatId}/messages`, {
+      const response = await axios.post(`${API_URL}/api/messages/${chatId}/send`, {
         content,
         message_type: messageType,
       })
-      
       // Message will be added via WebSocket
     } catch (error: any) {
       toast.error('Failed to send message')

@@ -24,3 +24,43 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+html, body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+* {
+  box-sizing: inherit;
+}
+
+button, input, textarea {
+  font-size: 1rem;
+  min-height: 44px;
+  min-width: 44px;
+  border-radius: 8px;
+}
+
+@media (max-width: 600px) {
+  .max-w-md {
+    max-width: 100vw !important;
+  }
+  .p-8, .sm\:p-20 {
+    padding: 1rem !important;
+  }
+  .gap-16, .gap-4, .gap-3 {
+    gap: 0.5rem !important;
+  }
+  .rounded-lg, .rounded-full {
+    border-radius: 12px !important;
+  }
+  .w-10, .h-10 {
+    width: 2.5rem !important;
+    height: 2.5rem !important;
+  }
+}

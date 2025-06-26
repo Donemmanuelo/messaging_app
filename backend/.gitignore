@@ -3,3 +3,6 @@
 Cargo.lock
 /media/*
 !media/.gitkeep
+**.env.**
+.env
+

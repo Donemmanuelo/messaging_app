@@ -3,12 +3,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { PaperAirplaneIcon, PaperClipIcon, FaceSmileIcon } from '@heroicons/react/24/outline';
 import type { MessageInputProps } from '@/types/chat';
+import { encryptMessage, importPublicKey } from '@/lib/e2ee';
 
-export default function MessageInput({ onSendMessage, onTyping }: MessageInputProps) {
+export default function MessageInput({ onSendMessage, onTyping, recipientId }: MessageInputProps) {
   const [message, setMessage] = useState('');
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const publicKeyCache = useRef<{ [id: string]: string }>({});
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -17,16 +19,30 @@ export default function MessageInput({ onSendMessage, onTyping }: MessageInputPr
     }
   }, [message]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (message.trim()) {
-      onSendMessage(message.trim(), 'text');
+      const recipientPublicKeyBase64 = await getRecipientPublicKey(recipientId);
+      const recipientPublicKey = await importPublicKey(recipientPublicKeyBase64);
+      const encrypted = await encryptMessage(message.trim(), recipientPublicKey);
+      onSendMessage(encrypted, 'text');
       setMessage('');
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
       }
     }
   };
+
+  async function getRecipientPublicKey(userId: string) {
+    if (publicKeyCache.current[userId]) {
+      return publicKeyCache.current[userId];
+    }
+    const res = await fetch(`/api/users/${userId}/public_key`);
+    if (!res.ok) throw new Error('Failed to fetch recipient public key');
+    const data = await res.json();
+    publicKeyCache.current[userId] = data.public_key;
+    return data.public_key;
+  }
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

@@ -7,7 +7,6 @@ use axum::{
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
 use std::fs::create_dir_all;
 use std::io::Write;
 use uuid;

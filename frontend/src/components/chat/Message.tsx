@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { EllipsisHorizontalIcon, ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
 import type { Message as MessageType } from '@/types/chat';
+import { decryptMessage, importPrivateKey, getPrivateKey } from '@/lib/e2ee';
 
 interface MessageProps {
   message: MessageType;
@@ -13,6 +14,28 @@ interface MessageProps {
 
 export default function Message({ message, isOwnMessage, onReply }: MessageProps) {
   const [showMenu, setShowMenu] = useState(false);
+  const [decryptedContent, setDecryptedContent] = useState<string | null>(null);
+  const [decryptError, setDecryptError] = useState<string | null>(null);
+
+  // Decrypt message content if type is text
+  useEffect(() => {
+    let isMounted = true;
+    async function decrypt() {
+      if (message.type === 'text') {
+        try {
+          const privateKeyBase64 = getPrivateKey();
+          if (!privateKeyBase64) throw new Error('No private key found');
+          const privateKey = await importPrivateKey(privateKeyBase64);
+          const plain = await decryptMessage(message.content, privateKey);
+          if (isMounted) setDecryptedContent(plain);
+        } catch (err) {
+          if (isMounted) setDecryptError('Failed to decrypt');
+        }
+      }
+    }
+    decrypt();
+    return () => { isMounted = false; };
+  }, [message.content, message.type]);
 
   const renderMessageContent = () => {
     switch (message.type) {
@@ -41,7 +64,11 @@ export default function Message({ message, isOwnMessage, onReply }: MessageProps
           />
         );
       default:
-        return <p className="text-gray-900">{message.content}</p>;
+        return (
+          <p className="text-gray-900">
+            {decryptError ? decryptError : decryptedContent ?? 'Decrypting...'}
+          </p>
+        );
     }
   };
 

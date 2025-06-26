@@ -1,7 +1,7 @@
 use crate::{
     error::AppError,
     models::message::Message,
-    websocket::validation::{WebSocketMessage, WebSocketResponse},
+    websocket::validation::WebSocketMessage,
     AppState,
 };
 use axum::{
@@ -11,11 +11,8 @@ use axum::{
     },
     response::IntoResponse,
 };
-use futures::{SinkExt, StreamExt};
-use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use futures::SinkExt;
 use std::sync::Arc;
-use tokio::sync::broadcast;
 use uuid::Uuid;
 use crate::middleware::AuthUser;
 

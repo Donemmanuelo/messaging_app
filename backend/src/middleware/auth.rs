@@ -1,11 +1,9 @@
 use crate::AppState;
 use axum::{
-    async_trait,
     extract::FromRequestParts,
-    extract::{Request, State},
+    extract::Request,
     http::request::Parts,
     http::{header, StatusCode},
-    middleware::Next,
     response::Response,
 };
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};

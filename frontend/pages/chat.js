@@ -105,11 +105,10 @@ export default function Chat() {
   const handleSend = async (e) => {
     e.preventDefault();
     if (!newMessage || !selectedGroup || !user) return;
-    sendWebSocketMessage(JSON.stringify({
-      chat_id: selectedGroup.id,
-      sender_id: user.id,
+    const token = localStorage.getItem('token');
+    await api.post(`/api/messages/${selectedGroup.id}/send`, {
       content: newMessage,
-    }));
+    }, { headers: { Authorization: `Bearer ${token}` } });
     setNewMessage('');
   };
 

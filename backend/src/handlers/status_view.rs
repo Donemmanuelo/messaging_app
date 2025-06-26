@@ -1,6 +1,6 @@
 use axum::{extract::{State, Path, Json}, response::IntoResponse, http::StatusCode};
 use std::sync::Arc;
-use crate::{AppState, models::status_view::StatusView};
+use crate::AppState;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

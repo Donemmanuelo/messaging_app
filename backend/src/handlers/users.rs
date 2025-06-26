@@ -6,8 +6,6 @@ use axum::{
 };
 use redis::{AsyncCommands, Commands};
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
-use sqlx::PgPool;
 use std::fs::create_dir_all;
 use std::io::Write;
 use std::sync::Arc;

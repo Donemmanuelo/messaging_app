@@ -1,48 +1,33 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from "react";
 import type { WebSocketMessage } from '@/types/chat';
 
-export function useWebSocket(url: string, onMessage?: (data: WebSocketMessage) => void) {
-  const [ws, setWs] = useState<WebSocket | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
+export function useWebSocket(url: string) {
+  const ws = useRef<WebSocket | null>(null);
+  const [incomingCall, setIncomingCall] = useState<null | { caller: any; callType: "audio" | "video"; offer: any }>(null);
 
   useEffect(() => {
-    const websocket = new WebSocket(url);
-    
-    websocket.onopen = () => {
-      console.log('WebSocket connected');
-      setIsConnected(true);
-      websocket.send(JSON.stringify({
-        type: 'auth',
-        token: localStorage.getItem('token')
-      }));
+    ws.current = new WebSocket(url);
+    ws.current.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === "call-offer") {
+          setIncomingCall({
+            caller: msg.caller,
+            callType: msg.callType,
+            offer: msg.offer,
+          });
+        }
+        // ...handle other message types...
+      } catch {}
     };
-
-    websocket.onmessage = (event) => {
-      const data = JSON.parse(event.data) as WebSocketMessage;
-      onMessage?.(data);
-    };
-
-    websocket.onclose = () => {
-      console.log('WebSocket disconnected');
-      setIsConnected(false);
-    };
-
-    setWs(websocket);
-
     return () => {
-      websocket.close();
+      ws.current?.close();
     };
-  }, [url, onMessage]);
+  }, [url]);
 
-  const sendMessage = useCallback((message: WebSocketMessage) => {
-    if (ws && isConnected) {
-      ws.send(JSON.stringify(message));
-    }
-  }, [ws, isConnected]);
+  const send = useCallback((data: any) => {
+    ws.current?.send(JSON.stringify(data));
+  }, []);
 
-  return {
-    ws,
-    isConnected,
-    sendMessage
-  };
+  return { ws: ws.current, send, incomingCall, setIncomingCall };
 } 

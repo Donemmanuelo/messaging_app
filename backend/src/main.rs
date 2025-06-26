@@ -56,12 +56,12 @@ mod middleware;
 mod models;
 mod routes;
 mod websocket;
+mod services;
 
 use db::get_pg_pool;
 use routes::auth::auth_routes;
 use routes::group::group_routes;
 use routes::media::media_routes;
-use routes::message::message_routes;
 use routes::status::status_routes;
 // use routes::message_reactions::message_reactions_routes;
 use routes::users::users_routes;
@@ -129,8 +129,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ])
         .allow_credentials(true);
 
-    // Build the app using the library's function
-    let app = create_app(pop, red_cli);
+    // Build the app using modular routers
+    let app = Router::new()
+        .nest("/api/auth", auth_routes())
+        .nest("/api/groups", group_routes())
+        .nest("/api/media", media_routes())
+        .nest("/api/status", status_routes())
+        .nest("/api/users", users_routes())
+        .nest("/api/push", push_routes())
+        // Add more .nest() for other modular routers as needed
+        .layer(cors)
+        .with_state(state.clone());
 
     // Axum server startup
     let port = env::var("PORT").unwrap_or_else(|_| "3000".to_string());

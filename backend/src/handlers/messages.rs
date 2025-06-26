@@ -16,7 +16,6 @@ use std::sync::Arc;
 use uuid::Uuid;
 use crate::middleware::AuthUser;
 use crate::services::web_push::{PushSubscription as WebPushSubscription, PushSubscriptionKeys, VapidConfig, send_web_push};
-use serde_json::Value as JsonValue;
 use sqlx::Row;
 
 const MAX_MESSAGE_LENGTH: usize = 4000;
@@ -89,7 +88,7 @@ struct GroupMessageInsertResult {
 pub async fn send_message(
     State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
-    Path(receiver_id): Path<Uuid>,
+    Path(chat_id): Path<Uuid>,
     Json(req): Json<CreateMessageRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     // Input validation
@@ -116,7 +115,7 @@ pub async fn send_message(
         "#
     )
     .bind(message_id)
-    .bind(req.chat_id)
+    .bind(chat_id)
     .bind(auth_user.id)
     .bind(req.content)
     .bind(req.media_url)
@@ -135,28 +134,37 @@ pub async fn send_message(
     .fetch_one(&state.pool)
     .await?;
 
-    // Send push notification to receiver
-    let subs = sqlx::query(
-        "SELECT endpoint, keys::text as keys_str FROM push_subscriptions WHERE user_id = $1"
+    // Send push notification to all chat participants except sender
+    let participants = sqlx::query!(
+        "SELECT user_id FROM chat_participants WHERE chat_id = $1 AND user_id != $2",
+        chat_id,
+        auth_user.id
     )
-    .bind(receiver_id)
     .fetch_all(&state.pool)
     .await?;
     let vapid = VapidConfig::from_env();
-    for sub in subs {
-        let endpoint: String = sub.try_get("endpoint")?;
-        let keys_str: String = sub.try_get("keys_str")?;
-        if let Ok(keys) = serde_json::from_str::<PushSubscriptionKeys>(&keys_str) {
-            let push_sub = WebPushSubscription {
-                endpoint,
-                keys,
-            };
-            let payload = serde_json::json!({
-                "title": "New Message",
-                "body": sender.display_name.clone().unwrap_or("New message".to_string()),
-                "data": { "chat_id": req.chat_id.to_string() },
-            }).to_string();
-            let _ = send_web_push(&push_sub, &payload, &vapid).await;
+    for participant in participants {
+        let subs = sqlx::query(
+            "SELECT endpoint, keys::text as keys_str FROM push_subscriptions WHERE user_id = $1"
+        )
+        .bind(participant.user_id)
+        .fetch_all(&state.pool)
+        .await?;
+        for sub in subs {
+            let endpoint: String = sub.try_get("endpoint")?;
+            let keys_str: String = sub.try_get("keys_str")?;
+            if let Ok(keys) = serde_json::from_str::<PushSubscriptionKeys>(&keys_str) {
+                let push_sub = WebPushSubscription {
+                    endpoint,
+                    keys,
+                };
+                let payload = serde_json::json!({
+                    "title": "New Message",
+                    "body": sender.display_name.clone().unwrap_or("New message".to_string()),
+                    "data": { "chat_id": chat_id.to_string() },
+                }).to_string();
+                let _ = send_web_push(&push_sub, &payload, &vapid).await;
+            }
         }
     }
 
@@ -164,7 +172,7 @@ pub async fn send_message(
     Ok(Json(MessageResponse {
         id: message.id,
         sender_id: message.sender_id,
-        receiver_id,
+        receiver_id: chat_id,
         content: message.content.as_deref().unwrap_or("").to_string(),
         media_url: message.media_url,
         media_type: message.media_type,
@@ -316,7 +324,7 @@ pub async fn send_group_message(
 pub async fn get_messages(
     State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
-    Path(receiver_id): Path<Uuid>,
+    Path(chat_id): Path<Uuid>,
     Query(query): Query<MessageQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let messages = sqlx::query_as::<_, MessageWithSender>(
@@ -332,7 +340,7 @@ pub async fn get_messages(
         LIMIT $3
         "#
     )
-    .bind(receiver_id)
+    .bind(chat_id)
     .bind(query.before)
     .bind(query.limit.unwrap_or(50))
     .fetch_all(&state.pool)
@@ -341,7 +349,7 @@ pub async fn get_messages(
     let messages: Vec<_> = messages.into_iter().map(|m| MessageResponse {
         id: m.id,
         sender_id: m.sender_id,
-        receiver_id: receiver_id,
+        receiver_id: chat_id,
         content: m.content.as_deref().unwrap_or("").to_string(),
         media_url: m.media_url,
         media_type: m.media_type,
@@ -427,7 +435,7 @@ pub async fn get_group_messages(
 pub async fn update_message(
     State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
-    Path(message_id): Path<Uuid>,
+    Path((chat_id, message_id)): Path<(Uuid, Uuid)>,
     Json(req): Json<UpdateMessageRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     // Input validation
@@ -497,7 +505,7 @@ pub async fn update_message(
     Ok(Json(MessageResponse {
         id: updated_message.id,
         sender_id: updated_message.sender_id,
-        receiver_id: updated_message.chat_id,
+        receiver_id: chat_id,
         content: updated_message.content.as_deref().unwrap_or("").to_string(),
         media_url: updated_message.media_url,
         media_type: updated_message.media_type,
@@ -515,7 +523,7 @@ pub async fn update_message(
 pub async fn delete_message(
     State(state): State<Arc<AppState>>,
     auth_user: AuthUser,
-    Path(message_id): Path<Uuid>,
+    Path((chat_id, message_id)): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse, AppError> {
     // Get the message
     let message = sqlx::query_as!(

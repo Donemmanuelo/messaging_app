@@ -1,0 +1,21 @@
+{
+  "name": "Messaging App",
+  "short_name": "Messenger",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "description": "A WhatsApp-like messaging app with chat, calls, and status.",
+  "icons": [
+    {
+      "src": "/vercel.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/vercel.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+} 

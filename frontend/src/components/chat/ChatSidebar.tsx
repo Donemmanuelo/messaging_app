@@ -3,15 +3,21 @@
 import { useState } from 'react';
 import { UserGroupIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 import type { Chat, User } from '@/types/chat';
+import GroupCallUI from "../GroupCallUI";
+import StatusList from "../Status/StatusList";
 
 interface ChatSidebarProps {
   chat: Chat;
   currentUser: User;
   onClose: () => void;
+  groupMemberIds: string[];
+  myId: string;
+  webSocket: any;
 }
 
-export default function ChatSidebar({ chat, currentUser, onClose }: ChatSidebarProps) {
+export default function ChatSidebar({ chat, currentUser, onClose, groupMemberIds, myId, webSocket }: ChatSidebarProps) {
   const [activeTab, setActiveTab] = useState<'info' | 'members'>('info');
+  const [showGroupCall, setShowGroupCall] = useState<"audio" | "video" | null>(null);
 
   const getParticipantName = (participant: User) => {
     return participant.displayName || participant.username;
@@ -138,6 +144,27 @@ export default function ChatSidebar({ chat, currentUser, onClose }: ChatSidebarP
           </button>
         </div>
       )}
+
+      {chat.isGroup && (
+        <div style={{ margin: "16px 0" }}>
+          <button onClick={() => setShowGroupCall("audio")}>Start Group Audio Call</button>
+          <button onClick={() => setShowGroupCall("video")}>Start Group Video Call</button>
+        </div>
+      )}
+
+      {showGroupCall && (
+        <GroupCallUI
+          webSocket={webSocket}
+          groupMemberIds={groupMemberIds}
+          myId={myId}
+          callType={showGroupCall}
+          onEnd={() => setShowGroupCall(null)}
+        />
+      )}
+      <div style={{ marginTop: 24 }}>
+        <h3 style={{ fontWeight: 600, marginBottom: 8 }}>Recent Statuses</h3>
+        <StatusList />
+      </div>
     </div>
   );
 } 

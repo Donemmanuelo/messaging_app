@@ -1,4 +1,3 @@
-use crate::models::UpdateProfileRequest;
 use crate::{
     error::AppError,
     models::group::{CreateGroupRequest, GroupMember, UpdateGroupRequest},
@@ -10,8 +9,6 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
-use utoipa::openapi::RefOr;
 use uuid::Uuid;
 use std::sync::Arc;
 use crate::AppState;

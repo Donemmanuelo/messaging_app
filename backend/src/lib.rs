@@ -75,16 +75,10 @@ pub fn create_app(pool: PgPool, redis: RedisClient) -> Router {
             "/groups/:id/members/:user_id",
             delete(handlers::groups::remove_group_member),
         )
-        .route(
-            "/messages/:receiver_id",
-            post(handlers::messages::send_message),
-        )
-        .route(
-            "/messages/:receiver_id",
-            get(handlers::messages::get_messages),
-        )
-        .route("/messages/:id", put(handlers::messages::update_message))
-        .route("/messages/:id", delete(handlers::messages::delete_message))
+        .route("/api/messages/:chat_id/send", post(handlers::messages::send_message))
+        .route("/api/messages/:chat_id", get(handlers::messages::get_messages))
+        .route("/api/messages/:chat_id/:message_id", put(handlers::messages::update_message))
+        .route("/api/messages/:chat_id/:message_id", delete(handlers::messages::delete_message))
         .route(
             "/groups/:id/messages",
             post(handlers::messages::send_group_message),

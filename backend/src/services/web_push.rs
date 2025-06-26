@@ -1,8 +1,7 @@
 use web_push::{WebPushMessageBuilder, VapidSignatureBuilder, ContentEncoding, SubscriptionInfo, SubscriptionKeys};
 use serde::{Deserialize, Serialize};
-use serde_json::Value as JsonValue;
 use base64::decode;
-use std::{env, ops::DerefMut};
+use std::env;
 use web_push::IsahcWebPushClient;
 use web_push::WebPushClient;
 
@@ -39,7 +38,7 @@ pub async fn send_web_push(
     payload: &str,
     vapid: &VapidConfig,
 ) -> Result<(), web_push::WebPushError> {
-    let mut subscription_info = SubscriptionInfo {
+    let subscription_info = SubscriptionInfo {
         endpoint: subscription.endpoint.clone(),
         keys: SubscriptionKeys {
             p256dh: decode(&subscription.keys.p256dh)
