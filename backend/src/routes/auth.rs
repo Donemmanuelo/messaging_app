@@ -1,11 +1,3 @@
-use crate::handlers::auth::{login, register, set_profile};
-use axum::{routing::post, Router};
-use std::sync::Arc;
-use crate::AppState;
-
-pub fn auth_routes() -> Router<Arc<AppState>> {
-    Router::new()
-        .route("/api/register", post(register))
-        .route("/api/login", post(login))
-        .route("/set_profile", post(set_profile))
-}
+version https://git-lfs.github.com/spec/v1
+oid sha256:6c193a8ce875df5caa61ab9066fdfbaf75acf8ecff8712112fa667313b1effa6
+size 706

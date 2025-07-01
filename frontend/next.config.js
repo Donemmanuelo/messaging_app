@@ -1,13 +1,3 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  reactStrictMode: true,
-  images: {
-    domains: [],
-  },
-  env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
-    NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000',
-  },
-};
-
-module.exports = nextConfig; 
+version https://git-lfs.github.com/spec/v1
+oid sha256:6fb1e5a4d24841b0d3e52429d76406cdcf1626dd29c6321a93d4069dd27323f9
+size 334

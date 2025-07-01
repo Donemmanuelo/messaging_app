@@ -1,13 +1,3 @@
-pub mod auth;
-pub mod group;
-pub mod media;
-pub mod message_reads;
-pub mod users;
-pub mod status;
-pub mod push;
-mod call_log;
-mod status_view;
-
-use group::start_group_call;
-use call_log::call_log_routes;
-use status_view::status_view_routes;
+version https://git-lfs.github.com/spec/v1
+oid sha256:c8d1fbc260e4b00c524fd60f60137bebf93a6fab591fc86c4776fb79787e2464
+size 1164

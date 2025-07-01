@@ -1,16 +1,3 @@
-let socket = null;
-
-export function connectWebSocket(onMessage) {
-  socket = new WebSocket('ws://localhost:8080/ws');
-  socket.onopen = () => console.log('WebSocket connected');
-  socket.onmessage = (event) => {
-    if (onMessage) onMessage(event.data);
-  };
-  socket.onclose = () => console.log('WebSocket disconnected');
-}
-
-export function sendWebSocketMessage(msg) {
-  if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(msg);
-  }
-} 
+version https://git-lfs.github.com/spec/v1
+oid sha256:daa3522157e793df849dbcda1405ff65ee3706f2530a631335599d3bfadaa0f9
+size 454
